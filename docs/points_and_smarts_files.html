@@ -1,0 +1,153 @@
+ <!DOCTYPE html>
+<html>
+<head>
+<title>Points and SMARTS Files</title>
+</head>
+<body>
+<h1>Points and SMARTS files</h1>
+<h2>Introduction</h2>
+<a href="triphic.html">Triphic</a>, <a href="plurality.html">Plurality</a>
+and <a href="loob.html">Loob</a> all require features to be defined
+using a combination of SMARTS and points definitions. The former
+define different types of functional group. and the latter are used to
+group them together into feature types.
+<h2><a name="SMARTS_FILES">SMARTS files</a></h2>
+<p>
+The SMARTS file format was originally developed by Pete Kenny for use
+with a program called Structanal, for counting substructural
+occurrences in molecules. It's a relatively simple format that has
+stood the test of time, although at least one of the elements is no
+longer strictly necessary. The SMARTS are specified one line per
+definition:
+<pre>
+benzene c1ccccc1 1 0
+biphenyl [$benzene]-[$benzene] 1 1
+</pre>
+
+The first field is the label for the SMARTS, the second is the SMARTS
+definition, the third is the redundant field, and the fourth is either
+a 0 or a 1, and denotes whether the definition is a vector binding (or
+SMARTS sub-definition) or a full definition. In the example above, the
+benzene SMARTS is a vector binding, the biphenyl SMARTS uses it in its
+definition. Now that we use OpenEye's OEChem routines for the SMARTS
+matching, the distinction is no longer strictly necessary, but is kept
+in for historical reasons and/or backward compatibility. 
+</p>
+<p>
+Any line that starts with a # is treated as a comment. You can't have
+comments part-way along a line, as you can with, for example, shell
+scripts, because a # is also used in SMARTS to mean a triple bond, so
+there would be ambiguity. There's no problem at the start of the line,
+as that's where the SMARTS name goes.
+</p>
+<h2><a name="POINTS_FILES">Points Files</a></h2>
+<p>
+The Points file was originally developed for Plurality, but is also
+used in Grappel, Triphic, Loob and SMG/Spiv. The purpose is to
+group SMARTS definitions together so that they are treated
+equivalently. The motivation behind it was the need to be able
+to treat the centroids of different-sized rings as equivalent,
+particularly so that aromatic ring centroids for 5- and
+6-membered rings could be treated as the same type of
+pharmacophoric point. This is not possible by merging SMARTS
+definitions as in
+
+
+<pre>
+	 arom5 a1aaaa1 1 0
+	 arom6 a1aaaaa1 1 0
+	 ring [$arom5,$arom6] 1 1
+</pre>
+(normal SMARTS_file format). When two SMARTS sub-definitions specify
+different numbers of atoms, the SMARTS matcher returns just the
+'head' atom of the SMARTS. In a generic ring such as those
+above, it is completely arbitrary which atom is returned, since
+they are all equivalent, so the ring position is not
+unambiguously determined. The only way to do so is to match all
+the atoms and take the centroid or average of the atom
+positions. To do this in the example above, one must match the
+SMARTS patterns separately and combine them at a higher level
+than the SMARTS search, and that's what the Points file is
+for. 
+</p>
+
+<h3>Format</h3>
+<p>
+The format is very straightforward. Each point type is specified on a separate line, consisting of the point name and the names of the SMARTS definitions that describe the point. There are also a few keywords that are interpreted by the file parser, of which more later. An example of a Points file commonly used for pharmacophore searching is
+
+<pre>
+# define points for donor, acceptor, aromatic an aliphatic hydrophobe
+donor  NeuDon
+acceptor  NeuAcc
+aromatic AromFive AromSix
+hphobe ITMOC_ALO
+# directional vectors for points
+H_VECTOR_POINTS donor
+LP_VECTOR_POINTS acceptor
+RING_NORMAL_POINTS aromatic
+</pre>
+
+Lines that start with a # are treated as comments and ignored. The
+first two point types defined, donor and acceptor, have only 1 SMARTS
+definition associated with them. The third point type, aromatic is the
+centroid of atoms hit by either SMARTS definition AromFive or
+AromSix. The fourth point type, hphobe is defined by a keyword (see
+below) rather than a SMARTS definition. The final 3 lines of the file
+use keywords (see below) associated with the points previously
+defined. 
+</p>
+
+<h3>Keywords</h3>
+<p>
+The words in upper case in the above example are keywords that some of
+the programs that use Points files recognise and act upon. If you use
+them in a Points file for a program that doesn't care, they will be
+ignored. The recognised words are:
+
+<ul>
+<li>
+        H_VECTOR_POINTS specifies that X-H vectors are to be added to
+        the named points
+</li>
+<li>
+        LP_VECTOR_POINTS specifies that lone pair vectors be added to
+        the named points
+</li>
+<li>
+        RING_NORMAL_POINTS specifies that ring normal vectors be added
+        to the named points
+</li>
+<li>
+        ITMOC specfies the use of the Catalyst algorithm for
+        hydrophobe definition
+</li>
+<li>
+        ITMOC_ALO specifies the use of the aliphatic part of the
+        Catalyst algorithm for hydrophobe definition 
+</li>
+</ul>
+The first three, H_VECTOR_POINTS, LP_VECTOR_POINTS and
+RING_NORMAL_POINTS are used at the start of a line in the Points file,
+and are followed by the name of one or more points types. You can use
+them with any points, defined by any SMARTS pattern, but they are only
+really intended to be used for h-bond donors, h-bond acceptors and
+ring centroids respectively. The first two assume that the SMARTS will
+hit a single atom - behaviour is not defined if more than 1 atom is
+hit. The RING_NORMAL_POINTS directive needs SMARTS that hit at least 3
+atoms for correct functioning; again, fewer than that will give
+undefined behaviour. Keywords ITMOC and ITMOC_ALO are used in the
+points definitions as 'pseudo-SMARTS' targets i.e. they appear on a
+line defining a point as if they were the name of a SMARTS
+pattern. They instruct the program to build feature points using the
+algorithm for hydrophobes used by Catalyst (JCICS, 34, 1297-1308
+(1994)). The former is the full
+calculation for aromatic and aliphatic hydrophobes, the latter is just
+the aliphatic part. You can't use the RING_NORMAL_POINTS keyword with
+the ITMOC pseudo-SMARTS, so if you want to line aromatic rings up,
+you'll need to use explicit SMARTS definitions for aromatic systems,
+and then, possibly, the ITMOC_ALO keyword to include the aliphatic
+hydrophobes.  
+</p>
+
+</body>
+</html> 

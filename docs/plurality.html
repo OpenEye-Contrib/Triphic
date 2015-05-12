@@ -1,0 +1,261 @@
+ <!DOCTYPE html>
+<html>
+<head>
+<title>Plurality</title>
+</head>
+<body>
+<h1>Plurality</h1>
+<h2>Introduction</h2>
+<p>
+Plurality is a 3D pharmacophore searching tool. It reads molecule
+files such as OEBin files written
+by OpenEye's omega program and runs in parallel using the PVM
+parallelisation routines. It aims to perform relatively
+straightforward pharmacophore searches quickly - with a reasonable
+number of parallel processes (10-20 or so) it can search about 25
+million conformations in a few tens of minutes.
+</p>
+<p>
+The search file for plurality is a simple ASCII file containing a list
+of feature types and geometrical information about their relative
+positions (distances, angles and torions between them, in ranges) as
+well as, optionally, coordinates for the features so that hits can be
+overlaid into a common reference frame, and hard and soft excluded
+volumes. Additionally, a molecular structure can be specified in a
+separate file and the overlap volume of overlaid hits with this
+structure will be reported. Unlike Triphic, Plurality reports all hits
+(see below for what constitute separate hits), not just the highest
+scoring ones. That's because there's no real concept of a score for
+this type of search.  
+</p>
+<h2>Command-line Arguments</h2>
+Command-line arguments are processed using the boost::program_options
+toolkit, which is very convenient to use, gives a consistent style
+and is largely self-documenting. Some of the more frequently-used
+options have single capital letter abbreviations, and all options can
+be contracted to their smallest unambiguous piece. 
+<ul>
+<li>
+    --help Produces the help text. Giving no arguments or an incorrect
+    argument will also have this effect.
+</li>
+<li>
+    -Q &lt;string&gt; or --pphore-file &lt;string&gt; Specifies the name of the
+    query file, in <a href="#PPHORE_FILE_FORMAT">Plurality's own format</a>.
+</li>
+<li>
+    -D &lt;string&gt; or --db-file &lt;string&gt; Specifies the database to be
+    searched, which can be anything that OEChem recognises. The file
+    type is deduced from the extension, and it can deal with
+    compressed files also.  It can also
+    read from standard input, again using standard OEChem
+    nomenclature, but specifying a filename just by the extension, and
+    piping the file into the executable. AS for triphic, you can't do
+    the 'cat and pipe' trick when running in parallel. You can,
+    however, specify multiple database files for the same run by
+    giving more than one -D <filename> options, or using the
+    --db-files-file option. 
+</li>
+<li>
+    --db-files-file &lt;string&gt; Specifies the name of a file containing
+    the names of the database files to be searched. Useful for
+    searching the ISAC VSDB files, where ISAC is split into multiple
+    files. Sam's new process helpfully creates such a file which you
+    can use directly.
+</li>
+<li>
+    -S &lt;string&gt; or --smarts-file &lt;string&gt; Gives the name
+    of the <a href="points_and_smarts_files.html#SMARTS_FILES">SMARTS
+    file</a> containing the definitions to be used for defining the
+    pharmacophore features.
+</li>
+</li>
+    -P &lt;string&gt; or --points-file &lt;string&gt; Gives the name
+ of the <a href="points_and_smarts_files.html#POINTS_FILES"> points
+    file</a> containing definitions of the features to be used in the
+    searching, including some extra information about which
+    directional vectors are to be included, if any. These are ring
+    normals, X-H bond vectors or lone-pair vectors.
+</li>
+<li>
+    -O &lt;string&gt; or --output-file &lt;string&gt; The name of the output
+    file. This must be a molecule file name, which will hold the
+    overlaid hits. A file with the extension .scores will also be
+    created holding all the
+    scores for the hits in the same order as the hits are in the
+    molecule file. A molecule file name means one
+    that ends in an extension that the OEChem toolkit recognises,
+    e.g. .mol2, .sdf, .oeb etc. The format will be deduced from the
+    extension.
+</li>
+<li>
+    --protein-file &lt;string&gt; Gives the name of a molecule file
+    containing a protein structure. As part of the scoring for each
+    hit the overlap volume with the protein will be calculated. The
+    overlap volume calculation is grid-based and the speed is largely
+    independent of the size of the protein. Although the option is
+    called --protein-file, it doesn't have to 
+    be a protein. If you're interested in the included volume between
+    another ligand and any hits, then use this option for that, too.
+</li>
+<li>
+    -G &lt;string&gt; or --grid-score-file &lt;string&gt; The name of a grid file,
+    probably prepared by PSG. For each hit, the overlap volume with
+    the grid will be reported in the output file. More than 1 grid can
+    be used, but each one needs a separate -G &lt;string&gt; option. This is
+    more flexible than the protein-file option, and probably
+    supersedes it, except that protein-file is a molecule file, so is
+    a bit more convenient in that you don't have to make a grid in a
+    separate step.
+</li>
+<li>
+    --scores-only Specifies that just the scores file should be
+    produced, not the structures of the hits. Useful if you're just
+    using Plurality for screening for, for example, acquisition, and
+    you don't care too much about the conformations, in which case you
+    would probably also want to specify --hits-to-output ONE_HIT_ONLY.
+</li>
+<li>
+    --subset-file &lt;string&gt; Allows you to supply the name of a file
+    containing names of molecules that should be searched as a subset
+    of the full database file. The names must match exactly, so if
+    your database file has been prepared according to some
+    ionisation and/or tautomer model, and tautomer numbers have been
+    added to the names in the database, those numbers must be added to
+    the names in the subset.
+</li>
+<li>
+    ---hits-to-output &lt;BEST_HITS_ONLY|ONE_HIT_ONLY|ALL_HITS&gt; This
+    option specifies which hits should be output, both to the
+    structure file and the scores file. The default is
+    BEST_HITS_ONLY. A hit in this instance is defined as a distinct
+    set of features in a conformation. In the default setting, just
+    one hit is produced for a set of features, in the conformation
+    with the best RMS overlay with the target coordinates. The same
+    database molecule will produce more than one hit only if there is
+    more than one set of features that match the query in at least one
+    conformation. If ALL_HITS is specified, then all conformations
+    where there is a set of features that match the query will be
+    reported, even if this means all conformations of the
+    molecule. ONE_HIT_ONLY means that once one hit has been
+    identified, the search moves on.
+</li>
+<li>
+    --comma-output Tells Plurality to output the scores file as a
+    comma-separated list, rather than the default space-separated one.
+</li>
+<li>
+    --dont-give-me &lt;string&gt; Specifies a file of SMARTS definitions,
+    that may have vector bindings, and/or may use vector bindings from
+    the main SMARTS file, that the hits may not match. Database
+    molecules that match any SMARTS so specified will not be searched
+    further.
+</li>
+<li>
+    --i-already-know-about &lt;string&gt; Synonymous with
+    ---dont-give-me-file
+</li>
+<li>
+    --slave-name &lt;string&gt; Specifies the name of the executable to be
+    used as a slave when running under PVM in parallel.
+</li>
+<li>
+    --num-slave-procs &lt;int&gt; Specifies the number of slave processes to
+    be used when running under PVM in parallel.
+</li>
+<li>
+    --pvm-hosts-file &lt;string&gt; Gives the name of a hosts file, with
+    numbers of processes to run on each named hosts. Expects the file
+    to have multiple lines, each line containing the name of a host
+    and the number of slaves to run on it.
+</li>
+</ul>
+
+<h3><a name="PPHORE_FILE_FORMAT">Pharmacophore File Format</a></h3>
+
+The pharmacophore is specified in a simple ASCII format. The minimum
+that must be specified is 2 or more feature types and a
+distance range. Normally, though, you'd be looking for
+something a bit more specific than this, and to that end you
+can include coordinates for the points, onto which hits will
+be overlaid, angles and torsions between points and vectors
+stemming from points and excluded volumes, both hard, into
+which the hit must not intrude, and soft, where the intrusion
+of the hit is merely calculated and reported. Each of these
+options is specified on a separate line in the file, with a
+keyword first followed by the appropriate number of items of
+data. It is not necessary to specify all possible combinations
+of distance, angle or torsion for the query, just those of
+interest. Any that aren't specified are allowed to take any
+value. Lines starting with # are ignored as comments. 
+
+<ul>
+<li>
+        Point &lt;string&gt; Specifies a point in the query. The
+        string is a name from the points file.
+</li>
+<li>
+        Coords &lt;int&gt; &lt;float&gt; &lt;float&gt; &lt;float&gt;
+        Specifies the coordinates of a point, onto which the
+        corresponding feature in a hit molecule will be overlaid. The
+        int is the sequence number of the point in question, as
+        specified in the pharmacophore file, counting from 1. The 3
+        floats are the x, y and z coordinates.
+</li>
+<li>
+        Distance &lt;int&gt; &lt;int&gt; &lt;float&gt; &lt;float&gt;
+        Specifies a distance range for the two features given by the
+        ints. Hits must have two features corresponding to the point
+        numbers within the distance range given. The first float is
+        the lower distance in the range, the second the upper
+        limit. If you get these the wrong way round, you'll get no
+        hits - it doesn't correct things for you.
+</li>
+<li>
+  Angle &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;float&gt;
+  &lt;float&gt; Specifies an angle range for the three features given
+  by the ints. If two of the ints are the same, then one is assumed to
+  refer to the end of a direction stemming from the feature. Thus, in
+  the line
+<pre>
+Angle 1 2 2 30.0 90.0
+</pre>
+the angle specified is between point 1, point 2 and any directional
+vector stemming from point 2. For example, if point 2 is an h-bond
+donor for which H_VECTOR_POINTS has been specified in the points file
+then the angle would be between point 1 and the X-H vector on the
+donor. If the donor is rotatable, then Plurality will attempt to line
+it up before calculating the angle. The line 
+<pre>
+Angle 2 2 1 30.0 90.0
+</pre>
+is equivalent to the example above - the 'outer' duplicate int always
+specifies the end of the directional vector. 
+</li>
+<li>
+        Torsion &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt;
+        &lt;float&gt; &lt;float&gt; Similar to Angle, but specifies a
+        torsion, so 4 ints are required. Either the first pair, or the
+        second pair, or both, can be the same, so enabling torsions
+        between directional vectors to be screened, for example the
+        angle between the planes of two aromatic rings.
+</li>
+<li>
+        hxvol &lt;float&gt; &lt;float&gt; &lt;float&gt; &lt;float&gt;
+        Specifies a hard excluded volume as x, y and z coordinates of
+        a point, followed by a radius. Any hit that, once overlaid,
+        has an atom that is within a distance of (excluded volume
+        radius + atom radius) of the excluded volume's coordinates is
+        discarded. The hard excluded volume thus denotes areas where
+        the hit may not go.
+</li>
+<li>
+        sxvol &lt;float&gt; &lt;float&gt; &lt;float&gt; &lt;float&gt;
+        Specifies a soft excluded volume. For these, just the overlap
+        volume with the hit is calculated and put in the scores
+        file. Hits that encroach too much onto the soft excluded
+        volumes can be filtered out later.  
+</li>
+</ul>
+</body>
+</html>

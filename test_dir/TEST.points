@@ -1,0 +1,6 @@
+# Points file
+Donor AllDon
+Acceptor AllAcc
+RING_NORMAL_POINTS aromatic
+aromatic   AromFive AromSix
+hydrophobic ITMOC_ALO

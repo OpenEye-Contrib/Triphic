@@ -1,0 +1,176 @@
+ <!DOCTYPE html>
+<html>
+<head>
+<title>Loob - 3D Pharmacophore Fingerprints</title>
+</head>
+<body>
+
+<h1>Loob</h1>
+
+<h2>Introduction</h2>
+<p>Loob is a program that generates 3D pharmacophore fingerprints in
+  the manner of Good et. al. (JCAMD, 18, 523-527 (2004)). It was
+  originally written to help Jamal Saeh develop SVM models of GPCR
+  activities (JCIM, 45, 1122-1133 (2005)), but are used
+  and (apparently) useful for other things. It requires 3D
+  conformations (1 or more per molecule) as input, and some
+  definitions of features of interest.  It has some default
+  definitions for h-bond donors and acceptors and hydrophobes built
+  in, but these can be over-ridden.  The features are mapped onto
+  each conformation, and distances between them calculated.  A
+  fingerprint is then created where each bit represents features
+  within certain distance ranges of each other.  It can produce
+  fingerprints based on feature pairs, triplets (triangles) and
+  quadruplets (tetrahedra). By default, all conformations of a
+  molecule go into the same fingerprint.</p> 
+
+<h2>Running Loob</h2>
+<p>Loob runs from the command line. As a bare minimum you need a file
+  of molecule structures. Most normally, this will be an OEBin file,
+  created by OpenEye's Omega program</p> 
+
+<h3>Command-line Options</h3>
+<p>
+The command-line arguments are processed using the
+boost::program_options toolkit, which is very convenient to use, gives
+a consistent style and is largely self-documenting. Some of the more
+frequently-used options have single capital letter abbreviations, and
+all options can be contracted to their smallest unambiguous piece.
+<ul>
+  <li>
+    --help Produces the help text. Giving no arguments or an incorrect
+    argument will also have this effect.
+  </li>
+  <li>
+    -D &lt;string&gt; or --db-file &lt;string&gt; Specifies the database to be
+	used for the structures, which can be anything that OEChem
+	recognises. The file type is deduced from the extension, and it
+	can deal with compressed files also.  It can also read from
+	standard input, again using tandard OEChem nomenclature, but
+	specifying a filename just by the extension, and piping the
+	file into the executable. Thus the command 
+	<pre>
+	  cat *.oeb.gz | ./loob -D oeb.gz
+	</pre>
+	will have loob read all the .oeb.gz files in the directory
+	sequentially.
+  </li>
+  <li>
+    -S &lt;string&gt; or --smarts-file &lt;string&gt; Gives the name
+    of the <a href="points_and_smarts_files.html#SMARTS_FILES">SMARTS
+	file</a> containing the definitions to be used for defining the
+	pharmacophore features.
+  </li>
+  <li>
+    -P &lt;string&gt; or --points-file &lt;string&gt; Gives the name
+	of the <a href="points_and_smarts_files.html#POINTS_FILES">points
+	file</a> containing definitions of the features to be used in the
+	fingerprint. Loob takes no account of the directional keywords in
+	the points file, although it won't object to them being there, but
+	you can have Catalyst hydrophobes if that's your thing.
+  </li>
+  <li>
+    --subset-file &lt;string&gt; A file containing names of molecules to
+      have their fingerprints generated. Molecules in the database file
+      not mentioned in this file will be ignored. The names must match
+      exactly, so if your database file has been prepared according to
+      some sort of ionisation and/or tautomer model, and tautomer
+      numbers have been added to the names in the database, those
+      numbers must be added to the names in the subset.
+  </li>
+  <li>
+    --pairs Specifies the inclusion of pair bits in the
+    fingerprint. These are two features and a distance bin.
+  </li>
+  <li>
+    --triplets Specifies the inclusion of triplet bits in the
+    fingerprint. These are three features and three distance
+    bins. This is the default output if none of pairs, triplets or
+    quadruplets is specified.
+  </li>
+  <li>
+    --quadruplets Specifies the inclusion of quadruplet bits in the
+    fingerprint. These are four features and six distance bins.
+  </li>
+  <li>
+    --single-conf-mols Directs Loob to treat each entry in a MOL2 or
+    SDF file as a separate molecule, rather than lumping all
+    consecutive entries with the same name and connection table into a
+    single molecule record with multiple conformations. Has no effect
+    if the input file is an OEBin.
+  </li>
+  <li>
+    --chiral-fps This only applies to quadruplet bits, and specifies
+    that chirality should be taken into account when generating the
+    bits. In principle, it will double the number of quadruplet
+    bits. The default is not to use it.
+  </li>
+  <li>
+    --bit-separator &lt;string&gt; Gives the separator to use between bits
+      in ASCII output files. By default, no separator is used. For
+      tab-separated files, use --bit-separator "\t" and for
+      space-separated files use --bit-separator " ".
+  </li>
+  <li>
+    -B &lt;float&gt; or --distance-bound &lt;float&gt; Specifies a distance bound
+	to use for the distance bins. The default bounds are 4.5, 7.0,
+	10.0, 14.0, 19.0 and 24.0, giving the bin ranges 0-4.5, 4.5-7.0,
+	7.0-10.0, 10.0-14.0, 14.0-19.0 and 19.0-24.0. If the distance
+	falls on the boundary edge, it goes into the lower bin. You need a
+	separate -B &lt;float&gt; for each distance bound, so to specify the
+	  defaults explicitly, you would need to say -B 4.5 -B 7.0 -B 10.0
+	  -B 14.0 -B 19.0 -B 24.0. If you specify the bounds yourself, Loob
+	  assumes you got it right, so make sure they're in correct
+	  ascending order.
+  </li>
+  <li>
+    --dont-compress-fps By default, Loob only reports bits that are
+    set in at least one molecule. This makes the fingerprint more
+    compact because columns of all 0 are removed, but it means that
+    the fingerprints aren't directly comparable from database to
+    database. Specifying this option means that all bits are written
+    so that all fingerprint files with the same settings contain the
+    same number of bits per molecule.
+  </li>
+  <li>
+    --bit-labels-to-ascii-file Specifies that in the ASCII output
+    files, the short names of the bits are written on the first line
+    of the file, to ease import of the data into JMP, CART or other
+    analysis programs.
+  </li>
+  <li>
+    --compressed-counts-cutoff &lt;int&gt; If using compressed fingerprints
+      (the default) bits are only written if they appear in at least one
+      molecule. This option raises that cutoff so you can report just
+      the bits that only appear in 5 molecules, for example.
+  </li>
+  <li>
+    --ascii-fps-file &lt;string&gt; The name of a file to which ASCII
+      fingerprints will be written i.e. 1s or 0s.
+  </li>
+  <li>
+    --compact-fps-file &lt;string&gt; The name of a file to which compact
+      fingerprints will be written. These are comma-separated lists of
+      the numbers of the set bits.
+  </li>
+  <li>
+    --names-fps-file &lt;string&gt; The name of a file to which named
+      compact fingerprints will be written. These are comma-separated
+      lists of the short names of the set bits.
+  </li>
+  <li>
+    --log-file &lt;string&gt; The name of a file to which a lot of the same
+      information that is written to the terminal is also written.
+  </li>
+  <li>
+    --bit-names-file &lt;string&gt; The name of a file to which the long
+      names of the bits are written, in the correct order. This file 
+      allows the individual bits to be de-convoluted. 
+  </li>
+</ul>
+Output is only written to the named files, so, in principle, Loob will
+do the whole fingerprint calculation and not write anything, if you
+don't give it the name of at least one output file.
+</p>
+</body>
+</html> 

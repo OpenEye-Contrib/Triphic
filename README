@@ -1,0 +1,28 @@
+This directory contains the means to build the programs plurality,
+triphic and loob.
+
+To build it, use the CMakeLists.txt file in the src directory. It
+requires the following environment variables to point to relevant
+places:
+
+OE_DIR - the top level of an OEChem distribution
+BOOST - the location of a recent (>1.48) build of the Boost libraries
+PVM_ROOT - the location of PVM (>3.4.3)
+
+Then cd to src and do something like:
+mkdir dev-build
+cd dev-build
+cmake -DCMAKE_BUILD_TYPE=DEBUG ..
+make
+
+If all goes to plan, this will make a directory src/exe_DEBUG with the
+executables in it.
+
+See the docs directory for instructions on running the program, and
+test_dir for some useful example files.
+
+David Cosgrove
+AstraZeneca
+23rd April 2015
+
+davidacosgroveaz@gmail.com

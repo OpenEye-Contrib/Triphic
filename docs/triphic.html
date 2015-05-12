@@ -1,0 +1,430 @@
+ <!DOCTYPE html>
+<html>
+<head>
+<title>Triphic</title>
+</head>
+<body>
+<h1>Triphic</h1>
+<h2>Introduction</h2>
+<p>
+Triphic does pharmacophore-based 3D similarity searching of a file of
+molecules. Most commonly, this will involve a single conformation of a
+molecule querying an OEBin file. It can run in serial or parallel
+using PVM.  It is similar in concept (though developed independently
+of) the CLIP program of Rhodes et al. (JCICS, 43, 443-448 (2003)).
+
+The triphic search is done by identifying, using SMARTS and points
+files, features of interest in the query and database molecules and
+using clique detection to find database molecules that have a features
+of the same type and relative spatial arrangements as 3 or more of the
+features in the query.  Any such database molecules are overlaid onto
+the query using the matching features and scored.
+
+<h2>Running Triphic</h2>
+Triphic runs from the command line.  As a bare minimum you need a
+query file, a database file and an output file.  There are numerous
+other options controlling the scoring, defining features or feature
+types that must be matched in the query etc.
+
+<h3>Mandatory Arguments</h3>
+<ul>
+<li>
+    -D &lt;string&gt; or --db-file &lt;string&gt; Specifies the database to be
+    searched, which can be anything that OEChem recognises. The file
+    type is deduced from the extension, and it can deal with
+    compressed files also. It can also
+    read from standard input, again using standard OEChem
+    nomenclature, but specifying a filename just by the extension, and
+    piping the file into the executable. Thus the command 
+      <pre>
+	cat *.oeb.gz | ./triphic -D .oeb.gz
+      </pre>
+      will have triphic read all the .oeb.gz files in the directory
+      sequentially. However, this will only work when running in
+      serial mode. When parallel processing you specify
+      multiple files using more than one -D option, as in 
+      <pre>
+	-D file1.oeb.gz -D file2.oeb.gz
+      </pre>
+    for as many files as you like, or you can use the
+    --db-files-file option.
+</li>
+<li>
+    -Q &lt;string&gt; or --query-file &lt;string&gt; Specifies the query file to
+    use in the search. This will most likely be one or more
+    single-conformation molecules in something that OEChem can read,
+    but it can also be a <a href="#MOE_PH4_FILES">MOE pharmacophore (.ph4)</a> file.
+</li>
+<li>
+    -O &lt;string&gt; or --output-file &lt;string&gt; The name of the output
+    file. This must a molecule file name, which will hold the
+    overlaid hits. A file with the extension .scores will also be
+    created holding all the scores for the hits in the same order as
+    the hits are in the molecule file.
+</li>
+</ul>
+<p>
+A molecule file name means one
+that ends in an extension that the OEChem toolkit recognises,
+e.g. .mol2, .sdf, .oeb.gz etc. The format will be deduced from the
+extension. You can specify a SMILES file, but the
+amount of information about the overlays contained in the SMILES
+file is low. 
+</p>
+
+<h3>Optional Arguements</h3>
+<ul>
+<li>
+  --help Produces the help text. Giving no arguments or an incorrect
+  argument will also have this effect.
+</li>
+<li>
+  -S &lt;string&gt; or --smarts-file &lt;string&gt; Gives the name of
+  the <a href="points_and_smarts_files.html#SMARTS_FILES">SMARTS
+  file</a> containing the definitions to be used for defining the
+  pharmacophore features.
+</li>
+<li>
+  -P &lt;string&gt; or --points-file &lt;string&gt; Gives the name of
+  the <a href="points_and_smarts_files.html#POINTS_FILES">points
+  file</a> containing definitions of the features to be
+  used in the searching, including some extra
+  information about which directional vectors are to be
+  included, if any. These are ring normals, X-H bond
+  vectors or lone-pair vectors. If neither the SMARTS
+  or points file is specified, a default set of
+  definitions will be used which will probably do you
+  right in most cases.
+</li>
+<li>
+  --db-files-file Specifies a file containing the names of database
+  files to be read. Used instead of giving multiple -D options. You
+  can use both options in the same run if that's your thing.
+</li>
+<li>
+  -M &lt;int&gt; or --max-hits &lt;int&gt; The maximum number of hits that will be
+      output. It defaults to 1000. These are always the
+      top-scoring hits for the search, according to the
+      primary score. Giving a value of 0 means no maximum -
+      all hits will be accumulated and output in sorted
+      order. Make sure you've got enough memory! 
+</li>
+<li>
+  --protein-file &lt;string&gt; Gives the name of a molecule file containing a
+    protein structure. As part of the scoring for each hit the overlap
+    volume with the protein will be calculated. Optionally, the hit can
+    be optimised in the field of the protein. For this to be useful, the
+    query must be in the same reference frame as the protein, such that
+    hits overlaid onto the query are in an orientation relevant to the
+    protein. The overlap volume calculation is grid-based and the
+    speed is largely independent of the size of the protein. 
+    <li>
+      --subset-file &lt;string&gt; A file containing names of molecules to be used
+	in the search. Molecules in the database file not mentioned in this
+	file will be ignored. The names must match exactly, so if your
+	database file has been prepared according to some ionisation
+	and/or tautomer model, and tautomer numbers have been added to the
+	names in the database, those numbers must be added to the names in
+	the subset. 
+    </li>
+    <li>
+      -G &lt;string&gt; or --grid-score-file &lt;string&gt; The name of a grid file,
+	  probably prepared by PSG. For each hit, the overlap
+	  volume with the grid will be reported in the output
+	  file. More than 1 grid can be used, but each one
+	  needs a separate -G &lt;string&gt; option. 
+    </li>
+    <li>
+      --primary-score &lt;string&gt; where &lt;string&gt; is one of &lt;RMS_AND_SIZE|ROBINS_PARETO|OVERALL_PARETO|GAUSS_SHAPE_TANI|GRID_SHAPE_TANI|SURFACE_OVLP_VOLUME|PROTEIN_CLASH|MMFF_ENERGY&gt;
+	Specifies the primary score to be used for sorting the hits. The
+	options are string values, only one of which should be
+	attempted. The default is RMS_AND_SIZE. GAUSS_SHAPE_TANI,
+	GRID_SHAPE_TANI and SURFACE_OVLP_VOLUME 
+	refer to calculations between the query and each hit. The grid-based
+	shape tanimoto, overlap volume and total volume will be reported for
+	the hits, and can be used for the sorting and filtering of results
+	if required. PROTEIN_CLASH is the overlap volume between the protein
+	and each hit, and MMFF_ENERGY is the strain energy between same. If
+	there is no protein, you'll get undefined behaviour. ROBINS_PARETO
+	is very close to the scoring method from Robin Taylor, as used in
+	CCDC's pharmacophore overlay program (JCAMD, 26, 451-472) and is the
+	Pareto score from included volume, h-bond and hydrophobe scores. In
+	the event of a Pareto tie (when sorting, neither of the two overlays
+	being compared dominates) a mysterious percentage difference in the
+	relevant scores is used as a tie-breaker. OVERALL_PARETO uses all
+	the scores in the current search to come up with a best consensus
+	order. 
+    </li>
+    <li>
+      --ring-normal-vector &lt;IGNORE|SCREEN|ALIGN&gt; How to treat ring normal
+	vectors. If this option is given, the points file must have
+	specified which points are to be used for generating ring
+	normals. The three options are strings, only one of which should be
+	given. They refer to how the search and overlap procedure should use
+	any ring normal vectors on features that match between the query and
+	any hit. IGNORE is pretty easy. SCREEN says that the vectors in matching
+	features must be aligned within a tolerance (see below) for the hit
+	to be accepted. ALIGN takes the ends of the vectors and adds them to
+	the matching features and the alignment repeated. This will try and
+	bring the ring normals into closer alignment than they were. After
+	the ALIGN has been carried out, the SCREEN criteria are applied. 
+    </li>
+    <li>
+      --ring-normal-tolerance &lt;float&gt; Gives the tolerance on the directions
+	of ring normal vectors when they are being used in SCREEN or ALIGN
+	mode. Default is 30 degrees.
+    </li>
+    <li>
+      --h-bond-donor-vector &lt;IGNORE|SCREEN|ALIGN&gt; How to treat H-bond donor
+	vectors. Similar remarks apply as to ring normal vectors, with the
+	addition that if the X-C bond is deemed rotatable (if it's a single
+	bond, and the X atom (O or N) is not conjugated with a pi-system)
+	the X-H bond will be aligned as closely as possible with the query
+	first by rotation about the X-C bond.
+    </li>
+    <li>
+      --h-bond-donor-tolerance &lt;float&gt; Same as for ring normal vectors. 
+    </li>
+    <li>
+      --h-bond-acceptor-vector &lt;IGNORE|SCREEN|ALIGN&gt; And the same for H-bond
+	acceptor vectors
+    </li>
+    <li>
+      --h-bond-acceptor-tolerance &lt;float&gt; Likewise. 
+    </li>
+    <li>
+      --optimise-ligand-rigid Specifies that a rigid-body optimisation of
+      each hit within the protein should be performed. There's no subtlety
+      about this, and it's more than likely that the ligand will ping
+      miles out of the active site if there's any sort of clash. Unless a
+      bit of it is so embedded that it's trapped. It uses OpenEye's
+      implementation of the MMFF forcefield for the optimisation
+      (Szybki toolkit), and the
+      final energy is reported as a score. If you're checking the
+      alignment of vectors, this is done after the optimisation. If
+      you don't have a license for the Szybki toolkit, this option
+      will be ignored.
+    </li>
+    <li>
+      --optimise-ligand-flexi Same as above, but with the ligand allowed
+      torsional flexibility. In both cases, the protein is kept
+      rigid.
+    </li>
+    <li>
+      --min-clique-size &lt;int&gt; Minimum size of clique for a hit i.e. minimum
+	number of matching features between the query and the hit. Defaults
+	to 3. You need at least 3 features for a sensible overlay.
+    </li>
+    <li>
+      --dist-tol &lt;float&gt; The tolerance on distances between matching
+	features. This is not the maximum RMS distance in the overlay, but
+	the tolerance on matching pairs of features passed into the
+	clique-detection algorithm that determines whether there's a hit or
+	not. If A in the query matches A' in the target molecule, and B
+	matches B' then for both A and B to appear as matching features, the
+	distance between A and B must be the same as the distance between A'
+	and B' with the tolerance. The default is 1 Angstrom. 
+    </li>
+    <li>
+      --scaled-dist-tol &lt;float&gt; This introduces a scaled tolerance instead
+	of the --dist-tol fixed value. The tolerance, as described above,
+	becomes the A to A' distance multiplied by the scaling factor, so
+	that nearer features have a tighter tolerance than features that
+	are further apart. 
+    </li>
+    <li>
+      --max-rms &lt;float&gt; This is the maximum RMS between overlaid matching
+	features in the query and hit. Default is 2.5 Angstrom. 
+    </li>
+    <li>
+      --min-gauss-shape-tanimoto &lt;float&gt; The minimum Gaussian shape tanimoto
+	between the query and a hit for the hit to be accepted. Can be any
+	number, but if it is to be effective, needs to be between 0.0 and
+	1.0. The default, -1.0, means no filtering. The shape tanimotos
+	aren't quite the same as those calculated by ROCS - the formula's
+	the same, but different approximations are used. There is a
+	reasonable correlation in the limited set I compared. 
+    </li>
+    <li>
+      --min-grid-shape-tanimoto &lt;float&gt; Similar to
+	--min-gauss-shape-tanimoto. This is the grid calculation that the
+	more recent manifestations of triphic used. It was deemed too slow
+	for some applications but it is, in my opinion, more
+	correct. There is a strong but not complete correlation with the
+	Gaussian shape tanimoto. 
+    </li>
+    <li>
+      --max-mmff-energy &lt;float&gt; A cutoff on MMFF energy between the ligand
+	and protein. Hits with an energy greater than the cutoff won't be
+	reported. The default is the largest floating point number your
+	machine can think of (MAX_FLOAT) and so is effectively no cutoff. 
+    </li>
+    <li>
+      --min-surface-volume &lt;float&gt; A cutoff on the surface overlap volume
+	between the query and the hit. Hits that have less than this value
+	will be discarded. Defaults to 0.0. 
+    </li>
+    <li>
+      --max-protein-clash &lt;float&gt; A cutoff on the overlap volume between the
+	protein and the hit. Hits that intrude into the protein by more than
+	this value will be discarded. Default is MAX_FLOAT. 
+    </li>
+    <li>
+      --min-included-volume &lt;float&gt; A cutoff on the overlap volume between
+	the query and the hit. Hits that have an overlap volume less than
+	this will be discarded. Default is MaX_FLOAT.
+    </li>
+    <li>
+      --no-hit-conf-number Specifies that the hit molecules should not have
+      the conformation number added to the name, but should just be called
+      the same as the parent molecule. 
+    </li>
+    <li>
+      --output-query-to-hits If the query is a molecule, then the query
+      structure is written to the top of the output file. There will be no
+      corresponding line in the scores file, though, so there should be 1
+      more molecule in the output file than score in the scores file. 
+    </li>
+    <li>
+      --print-sites-and-stop Runs the program until the query sites have
+      been generated, prints details of same to screen and stops. Useful
+      if you are going to want to specify required sites (see below). 
+    </li>
+    <li>
+      --comma-output Specifies that the scores file should have
+      comma-separated fields. The default is spaces. 
+    </li>
+    <li>
+      --output-scores-only Specifies that just the scores file should be
+      produced, not the molecules file. You still specify the output file
+      as a molecule file though. 
+    </li>
+    <li>
+      --single-conf-mols Specifies that the database file is to be treated
+      as a collection of single conformation molecules. Only relevant for
+      ASCII molecule files such as MOL2 or SDF. The default behaviour is
+      to assume that molecules with the same name and connection pattern
+      are different conformations of the same molecule. 
+    </li>
+    <li>
+      --req-sites-or &lt;string&gt; Specifies that the named site must be added to
+	the OR'ed list of required sites. One or more of the OR'ed required
+	sites must be matched in the query by a site in the hit for the hit
+	to be accepted. If you want more than one site in the OR'ed list,
+	you must give multiple --req-sites-or &lt;string&gt; options. Site means a
+	  specific instance of a feature in the query
+	  e.g. Site_1_acceptor. 
+    </li>
+    <li>
+      --req-sites-and &lt;string&gt; Similar to previous option, but the named
+	site is added to the AND'ed list. All query sites mentioned in the
+	AND'ed list must be matched by a feature in the hit for the hit to
+	be accepted. 
+    </li>
+    <li>
+      --req-points-or &lt;string&gt; Similar to req-sites-or except it refers to a
+	feature type rather than a specific site, so would be something like
+	acceptor or donor. 
+    </li>
+    <li>
+      --req-points-and &lt;string&gt; Similar to req-sites-and. 
+    </li>
+    <li>
+      --ignore-sites &lt;string&gt; Removes the named site from the query before
+	the searching starts. Can be used more than once. 
+    </li>
+    <li>
+      --dont-give-me &lt;string&gt; Specifies a file of SMARTS definitions, that
+	may have vector bindings, and/or may use vector bindings from the
+	main SMARTS file, that the hits may not match. Database molecules
+	that match any SMARTS so specified will not be searched further. 
+    </li>
+    <li>
+      --i-already-know-about &lt;string&gt; Synonymous with ---dont-give-me-file 
+    </li>
+    <li>
+      --sites-score-file &lt;string&gt; Specifies a file of molecule structures,
+	for use when the query file is in MOE ph4 format.  The
+	molecule in the file will be used to calculate the
+	normal volume scores during the run, such as the shape tanimoto,
+	that aren't normally available in a ph4 query because there isn't
+	a structure to work with. 
+    </li>
+    <li>
+      --gauss-shape-tanimoto Specifies that the Gaussian shape tanimoto
+      should be calculated between each hit and the corresponding
+      query. The default is for this to be true, and, thinking about it, I
+      don't think it can be turned off! 
+    </li>
+    <li>
+      --grid-shape-tanimoto Specifies that the grid-based shape tanimoto,
+      included volume and total volume between each hit and the query
+      should be calculated. By default, they aren't, to save time, unless
+      some other option requires it, such as min-grid-shape-tanimoto. 
+    </li>
+    <li>
+      --all-best-hits By default, triphic returns at most one hit per target
+      molecule, the one with the best primary score. This option has it
+      putting out all the best hits from each target molecule. So if there
+      are two different sets of features that both match between the query
+      and the target, both will be reported. If for a given matched set
+      there is more than one conformation that matches, the best match by
+      primary score is returned. That's what the 'all the best hits' bit
+      means. This option does not over-ride the --max-hits argument, nor
+      does it alter the sorting of the hits - the hits are still fed into
+      the sorted hit list in the normal way and truncated at the maximum
+      number. So if you're going to use this option, you'd probably be
+      better raising the --max-hits number or setting it to 0. 
+    </li>
+    <li>
+      --dont-do-sub-cliques By default, if a clique is found that is larger
+      than --min-clique-size, triphic also generates all sub-cliques down
+      to that size. This can slow things down quite a lot as the number of
+      overlays that need scoring shoots up, and you might not always want
+      it. So this option turns off that behaviour. 
+    </li>
+    <li>
+      --slave-name &lt;string&gt; Specifies the name of the executable to be used
+	as a slave when running under PVM in parallel. 
+    </li>
+    <li>
+      --num-slave-procs &lt;int&gt; Specifies the number of slave processes to be
+	used when running under PVM in parallel.
+    </li>
+<li>
+  --pvm-hosts-file <string> Gives the name of a hosts file, with
+    numbers of processes to run on each named hosts. Expects the file
+    to have multiple lines, each line containing the name of a host
+    and the number of slaves to run on it. It's the best was of
+    running on the AP cluster, as the job starter makes the file for
+    you. You just need to give it the slave name with --slave-name and
+    away you go. 
+</li>
+</ul>
+
+<h3><a name="MOE_PH4_FILES">MOE Pharmacophore Files</a></h3>
+MOE is a molecular modelling program from the Chemical Computing Group
+(ccG).  It can be used to create pharmacophores and those can be
+written to file for database searching.  It has a fairly complex and
+not, as far as I know, documented, format. Triphic uses just the feature
+points and included volumes bits. I think that's all the useful
+stuff in the file, but it's difficult to be sure. Extension points can
+also be used as part of the query. If they are clearly associated with
+a base site, they will be converted into site directions such as
+triphic has always had as an option. MOE also lets you specify them
+'naked', such as when setting up the query from a protein active
+site. In this case, the virtual sites from ROBINS_PARETO scoring are
+used from each database conformation to match. This is the best
+method yet found for making triphic crawl at an appallingly slow rate,
+because it dramatically increases the number of features in the
+database conformation, meaning vastly more cliques to be scored. A
+hydroxyl produces 12 virtual site points, for example. In one simple
+test case, adding a single extension point to the query increased the
+number of cliques to be scored by a factor of 40, and two extension
+points by a factor of 60. You probably want to use
+--dont-do-sub-cliques at least when doing big searches or preliminary
+screening. Included volumes in the PH4 file will be reported as
+overlay volumes MOE_Volume_1 etc. 
+
+</body>
+</html> 
