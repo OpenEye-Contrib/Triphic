@@ -2,5 +2,5 @@
 Donor AllDon
 Acceptor AllAcc
 RING_NORMAL_POINTS aromatic
-aromatic   AromFive AromSix
+Aromatic   AromFive AromSix
 hydrophobic ITMOC_ALO

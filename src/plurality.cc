@@ -133,6 +133,20 @@ int main( int argc , char **argv ) {
     exit( 1 );
   }
 
+  vector<string> query_pts = query.point_types();
+  map<string,vector<string> > defined_pts = pharm_points.points_defs();
+  bool err_flag( false );
+  for( int i = 0 , is = query_pts.size() ; i < is ; ++i ) {
+    if( defined_pts.end() == defined_pts.find( query_pts[i] ) ) {
+      cerr << "ERROR : pharmacophore file calls for feature named " << query_pts[i]
+	   << " which is not defined in the points file." << endl;
+      err_flag = true;
+    }
+  }
+  if( err_flag ) {
+    exit( 1 );
+  }
+
   if( slave_tids.empty() ) {
     try {
       serial_plurality_search( plurality_settings );
