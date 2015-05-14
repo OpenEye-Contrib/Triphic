@@ -936,6 +936,8 @@ void write_compact_fp( int num_bits , LoobSettings &loob_settings ,
 		       const vector<int> &full_to_compressed ,
 		       const vector<int> &composite_fp_bits ) {
 
+  cout << "Writing compact fps to " << loob_settings.compact_fp_file_ << endl;
+
   ofstream ofs( loob_settings.compact_fp_file_.c_str() );
   if( !ofs ){
     throw DACLIB::FileWriteOpenError( loob_settings.compact_fp_file_.c_str() );
@@ -1302,19 +1304,37 @@ void output_fingerprints( LoobSettings &loob_settings , int mols_done ,
   fp_map_to_bit_names( fp_map , bit_names );
 
   if( loob_settings.ascii_fps_ ) {
-    write_ascii_fp( fp_map.size() , loob_settings , bits_set , fp_counts ,
-		    full_to_compressed , composite_fp_bits , bit_names );
+    try {
+      write_ascii_fp( fp_map.size() , loob_settings , bits_set , fp_counts ,
+		      full_to_compressed , composite_fp_bits , bit_names );
+    } catch( DACLIB::FileWriteOpenError &e ) {
+      cerr << "Error opening file " << e.what() << " for writing ASCII fingerprints." << endl;
+    }
   }
   if( loob_settings.compact_fps_ ) {
-    write_compact_fp( fp_map.size() , loob_settings , bits_set , fp_counts ,
-		      full_to_compressed , composite_fp_bits );
+    try {
+      write_compact_fp( fp_map.size() , loob_settings , bits_set , fp_counts ,
+			full_to_compressed , composite_fp_bits );
+    } catch( DACLIB::FileWriteOpenError &e ) {
+      cerr << "Error opening file " << e.what() << " for writing compact fingerprints." << endl;
+    }
   }
   if( loob_settings.labels_not_bits_ ) {
-    write_labels_not_bits_file( fp_map.size() , loob_settings , bits_set ,
-				fp_counts , bit_names );
+    try {
+      write_labels_not_bits_file( fp_map.size() , loob_settings , bits_set ,
+				  fp_counts , bit_names );
+    } catch( DACLIB::FileWriteOpenError &e ) {
+      cerr << "Error opening file " << e.what() << " for writing labels file." << endl;
+    }
+
   }
   if( !loob_settings.bit_names_file_.empty() ) {
-    write_bit_names_file( loob_settings , bit_names , fp_counts , points_defs );
+    try {
+      write_bit_names_file( loob_settings , bit_names , fp_counts , points_defs );
+    } catch( DACLIB::FileWriteOpenError &e ) {
+      cerr << "Error opening file " << e.what() << " for writing bit names file." << endl;
+    }
+
   }
 
   report_fingerprint_counts( cout , loob_settings , mols_done ,

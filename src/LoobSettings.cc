@@ -41,8 +41,6 @@ LoobSettings::LoobSettings( int argc , char **argv ) :
   po::options_description desc( "Allowed Options" );
   build_program_options( desc );
 
-  polish_args();
-
   po::variables_map vm;
   po::store( po::parse_command_line( argc , argv , desc ) , vm );
   po::notify( vm );
@@ -51,6 +49,8 @@ LoobSettings::LoobSettings( int argc , char **argv ) :
     cout << desc << endl;
     exit( 1 );
   }
+
+  polish_args();
 
   ostringstream oss;
   oss << desc;
@@ -93,7 +93,6 @@ void LoobSettings::build_program_options( boost::program_options::options_descri
       "Minimum number of compounds that set a bit for it to appear in the compressed fingerprint." )
     ( "ascii-fps-file" , po::value<string>( &ascii_fp_file_ ) ,
       "Filename for fingerprints in ASCII file." )
-    // not working at the moment
     ( "compact-fps-file" , po::value<string>( &compact_fp_file_ ) ,
       "Filename for compact fingerprints (just the numbers of the set bits)." )
     ( "names-fps-file" , po::value<string>( &names_fp_file_ ) ,
@@ -108,19 +107,13 @@ void LoobSettings::build_program_options( boost::program_options::options_descri
 // *******************************************************************
 void LoobSettings::polish_args() {
 
-  if( !ascii_fp_file_.empty() ) {
-    ascii_fps_ = true;
-  }
+  ascii_fps_ = !ascii_fp_file_.empty();
+  compact_fps_ = !compact_fp_file_.empty();
+  labels_not_bits_ = !names_fp_file_.empty();
 
-  if( !compact_fp_file_.empty() ) {
-    compact_fps_ = true;
-  }
-  if( !names_fp_file_.empty() ) {
-    labels_not_bits_ = true;
-  }
-
-  if( !ascii_fps_ && !compact_fps_ &&!labels_not_bits_ ) {
-    ascii_fps_ = true; // default to ASCII output
+  if( !ascii_fps_ && !compact_fps_ && !labels_not_bits_ ) {
+    cerr << "You haven't specified an output file, so not doing anything." << endl;
+    exit( 1 );
   }
 
   // the boost::program_options functions are a bit literal with strings
@@ -136,8 +129,9 @@ void LoobSettings::polish_args() {
     bit_separator_ = "";
   }
 
-  if( !pairs_ && !triplets_ && !quadruplets_ )
+  if( !pairs_ && !triplets_ && !quadruplets_ ) {
     triplets_ = true;
+  }
 
   if( dist_bounds_.empty() ) {
     dist_bounds_.push_back( 4.5F );

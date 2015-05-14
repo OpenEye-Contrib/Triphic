@@ -122,9 +122,6 @@ set(LOOB_DACLIB_SRCS angle_about_axis.cc
   read_smarts_file.cc
   rotate_about_axis.cc
   DiamondOverlay.cc
-  FingerprintBase.cc
-  HashedFingerprint.cc
-  NotHashedFingerprint.cc
   OverlayTrans.cc
   ParseSMARTSXML.cc
   PharmPoint.cc)
