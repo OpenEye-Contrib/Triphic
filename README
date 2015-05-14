@@ -1,5 +1,12 @@
 This directory contains the means to build the programs plurality,
 triphic and loob.
+Plurality is a program that searches a database for molecules with
+given pharmacophore.
+Triphic searches a database for molecules which have pharmacophore
+features in a similar orientation to some or all of the features in a
+query molecule.
+Loob creates 3D pharmacophore fingerprints for a database of
+molecules. 
 
 To build it, use the CMakeLists.txt file in the src directory. It
 requires the following environment variables to point to relevant
