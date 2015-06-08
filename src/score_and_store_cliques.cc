@@ -243,18 +243,17 @@ void overlay_mols_and_sites( OEMol *target_mol ,
                              const vector<SinglePPhoreSite *> &target_sites ,
                              OverlayScore *ov_score , bool use_ring_norms ,
                              bool use_h_vectors , bool use_lps ,
-                             OEMolBase *&target_conf ,
-                             vector<SinglePPhoreSite *> &ov_target_sites ) {
+                             OEMolBase *&target_conf ) {
 
-  ov_target_sites.clear();
   int target_conf_num = ov_score->get_moving_conf();
-
-  for( int j = 0 , js = target_sites.size() ; j < js ; ++j ) {
-    ov_target_sites.push_back( new SinglePPhoreSite( *target_sites[j] ) );
-  }
   target_conf = get_given_oeconf( *target_mol , target_conf_num , false );
   if( !target_conf ) {
     return;
+  }
+
+  vector<SinglePPhoreSite *> ov_target_sites;
+  for( int j = 0 , js = target_sites.size() ; j < js ; ++j ) {
+    ov_target_sites.push_back( new SinglePPhoreSite( *target_sites[j] ) );
   }
 
   OverlayTrans ov_trans;
@@ -279,6 +278,10 @@ void overlay_mols_and_sites( OEMol *target_mol ,
     }
   }
   add_clique_site_info( query_sites , ov_target_sites , clique , *target_conf );
+
+  for( int i = 0 , is = ov_target_sites.size() ; i < is ; ++i ) {
+    delete ov_target_sites[i];
+  }
 
 }
 

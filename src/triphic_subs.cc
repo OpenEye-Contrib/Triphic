@@ -120,8 +120,7 @@ void overlay_mols_and_sites( OEMol *target_mol ,
                              const vector<SinglePPhoreSite *> &target_sites ,
                              OverlayScore *ov_score , bool use_ring_norms ,
                              bool use_h_vectors , bool use_lps ,
-                             OEMolBase *&target_conf ,
-                             vector<SinglePPhoreSite *> &ov_target_sites );
+                             OEMolBase *&target_conf );
 // and this
 float optimise_overlay( shared_ptr<OESzybki> &szybki ,
                         OEMolBase *target_conf ,
@@ -411,12 +410,11 @@ void overlay_hit_and_store( OEMol &target_mol ,
 
   // final overlaid results for hit
   OEMolBase *hit_conf = 0;
-  vector<SinglePPhoreSite *> hit_sites;
 
   overlay_mols_and_sites( &target_mol , query_sites ,
                           target_sites[hit_score->get_moving_conf()] ,
 			  hit_score , use_ring_norms , use_h_vectors , use_lps ,
-			  hit_conf , hit_sites );
+			  hit_conf );
   if( !hit_conf ) {
     return;
   }
