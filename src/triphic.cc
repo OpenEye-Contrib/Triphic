@@ -51,6 +51,15 @@ int main( int argc , char **argv ) {
        << OEChemGetRelease() << "." << endl << endl
        << "Copyright AstraZeneca 2009, 2014." << endl << endl;
 
+  // a strange quirk of the threading code in OEChem means that by default
+  // it accumulates memory in a cache, unless you tell it not to. With
+  // triphic running for days on millions of molecules in a typical run,
+  // this can cause it to run out of memory which is bad for it and anything
+  // else that's running at the time.  This forces it to use the standard
+  // system-supplied memory management, which is a bit slower but essential
+  // for big virtual screening runs.
+  OESystem::OESetMemPoolMode( OESystem::OEMemPoolMode::System );
+
   // was this launched as a PVM slave?  --IM-A-SLAVE is provided by
   // my launcher. We need to intercept it if it was, and send it straight into
   // listening mode.

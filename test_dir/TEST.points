@@ -4,3 +4,5 @@ Acceptor AllAcc
 RING_NORMAL_POINTS aromatic
 Aromatic   AromFive AromSix
 hydrophobic ITMOC_ALO
+LP_VECTOR_POINTS Acceptor
+H_VECTOR_POINTS Donor

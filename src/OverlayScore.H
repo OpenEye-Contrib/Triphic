@@ -97,7 +97,7 @@ protected :
   // score method for comparison between 2 scores
   static GtplDefs::SCORE_METHOD score_method_;
 
-  OverlayTrans *ov_trans_;
+  boost::scoped_ptr<OverlayTrans> ov_trans_;
   // copies of the moving sites and conformation, overlaid using the clique
   boost::shared_ptr<OEChem::OEMolBase> ov_conf_;
   std::vector<boost::shared_ptr<SinglePPhoreSite> > ov_sites_;
@@ -128,9 +128,7 @@ public :
                 bool use_lps_in_overlay , bool do_overlay = true );
 
   // for the comparisons
-  OverlayScore( const std::string &fix_mol_name , const std::string &mov_mol_name ) :
-    fixed_mol_name_( fix_mol_name ) , moving_mol_name_( mov_mol_name ) ,
-    ov_trans_( static_cast<OverlayTrans *>( 0 ) ) {}
+  OverlayScore( const std::string &fix_mol_name , const std::string &mov_mol_name );
 
   // this one builds itself from a string, and is used, at least initially,
   // in parallel triphic to create an object from data sent between
@@ -182,7 +180,7 @@ public :
   float hbond_score() const { return hbond_score_; }
   float vol_score() const { return vol_score_; }
 
-  OverlayTrans *ov_trans() const { return ov_trans_; }
+  OverlayTrans *ov_trans() const { return ov_trans_.get(); }
   int num_grid_vols() const { return grid_vols_.size(); }
   std::vector<std::pair<std::string,float> > grid_vols() const {
     return grid_vols_;
@@ -339,34 +337,16 @@ public :
 bool overlay_score_names_and_sites_match( const OverlayScore *a ,
                                           const OverlayScore *b );
 
-// so we can sort them by mol/conf names
-class OverlayScoresLess :
+// so we can sort them with STL functions
+class OverlayScoreMore :
     public std::binary_function<const OverlayScore * , const OverlayScore * , bool> {
 
 public :
   
   result_type operator()( first_argument_type a , second_argument_type b ) const {
-
-    if( a->get_fixed_mol_name() == b->get_fixed_mol_name() ) {
-      if( a->get_moving_mol_name() == b->get_moving_mol_name() )
-        return a->get_moving_conf() < b->get_moving_conf();
-      else
-        return a->get_moving_mol_name() < b->get_moving_mol_name();
-    } else
-      return a->get_fixed_mol_name() < b->get_fixed_mol_name();
+    return *a > *b;
   }
-};
 
-class OverlayScoreIsMoreSizeAndRMS :
-    public std::binary_function<const OverlayScore * , const OverlayScore * , bool> {
-public :
-  result_type operator()( first_argument_type a ,
-                          second_argument_type b ) const {
-    if( a->num_sites() == b->num_sites() )
-      return a->rms() < b->rms();
-    else
-      return a->num_sites() > b->num_sites();
-  }
 };
 
 #endif

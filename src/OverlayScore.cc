@@ -126,6 +126,13 @@ OverlayScore::OverlayScore( const string &fix_mol_name ,
 }
 
 // *************************************************************************
+OverlayScore::OverlayScore( const std::string &fix_mol_name ,
+                            const std::string &mov_mol_name ) :
+  fixed_mol_name_( fix_mol_name ) , moving_mol_name_( mov_mol_name ) {
+
+}
+
+// *************************************************************************
 // this one builds itself from a string, and is used, at least initially,
 // in parallel triphic to create an object from data sent back from a slave.
 // The string has most probably been written by write_contents_to_string().
@@ -216,8 +223,6 @@ OverlayScore::OverlayScore(  const OverlayScore &ovs ) {
 // ******************************************************************************
 OverlayScore::~OverlayScore() {
 
-  delete ov_trans_;
-
 }
 
 // ******************************************************************************
@@ -245,10 +250,11 @@ void OverlayScore::copy_data( const OverlayScore &ov ) {
   clique_tanimoto_ = ov.clique_tanimoto_;
   grid_vols_ = ov.grid_vols_;
 
-  if( ov.ov_trans_ )
-    ov_trans_ = new OverlayTrans( *ov.ov_trans_ );
-  else
-    ov_trans_ = 0;
+  if( ov.ov_trans_ ) {
+    ov_trans_.reset( new OverlayTrans( *ov.ov_trans_ ) );
+  } else {
+    ov_trans_.reset();
+  }
 
   ov_conf_ = ov.ov_conf_;
   ov_sites_ = ov.ov_sites_;
@@ -446,7 +452,7 @@ void OverlayScore::overlay_mol_and_sites( const vector<BasePPhoreSite *> &fixed_
                                           bool do_overlay ) {
 
   vector<int> clique( site_nums_ , site_nums_ + 2 * num_sites_ );
-  ov_trans_ = new OverlayTrans;
+  ov_trans_.reset( new OverlayTrans );
   try {
     rms_ = calc_overlay_trans( fixed_sites ,  moving_sites , clique , *ov_trans_ ,
                                false , false , false );
