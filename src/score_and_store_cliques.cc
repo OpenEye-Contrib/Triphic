@@ -243,10 +243,9 @@ void overlay_mols_and_sites( OEMol *target_mol ,
                              const vector<SinglePPhoreSite *> &target_sites ,
                              OverlayScore *ov_score , bool use_ring_norms ,
                              bool use_h_vectors , bool use_lps ,
-                             OEMolBase *&target_conf ,
-                             vector<SinglePPhoreSite *> &ov_target_sites ) {
+                             OEMolBase *&target_conf ) {
 
-  ov_target_sites.clear();
+  vector<SinglePPhoreSite *> ov_target_sites;
   int target_conf_num = ov_score->get_moving_conf();
   target_conf = get_given_oeconf( *target_mol , target_conf_num , false );
   if( !target_conf ) {

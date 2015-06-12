@@ -435,6 +435,8 @@ void overlay_hit_and_store( OEMol &target_mol ,
 
   add_overlay_scores_to_mol( *hit_conf , *hit_score );
 
+  delete hit_conf;
+
 }
 
 // ********************************************************************
