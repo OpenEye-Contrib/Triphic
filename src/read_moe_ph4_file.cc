@@ -8,9 +8,7 @@
 // into a format usable by triphic and friends.
 // The format has been deduced by examining the entrails of a number of such
 // files rather than from any documentation that might exist, so it may not
-// be entirely correct and is certainly incomplete.
-// It reads features and volumes, but not lots of the fancy combination flags
-// for the features.
+// be entirely correct and probably isn't complete.
 
 #include "BasePPhoreSite.H"
 #include "FileExceptions.H"
@@ -34,7 +32,7 @@ void build_sites_from_moe_features( string &moe_features ,
                                     PharmPoint &pharm_points ,
                                     vector<pair<string,string> > &input_smarts ,
                                     vector<pair<string,string> > &smarts_sub_defn ,
-                                    vector<vector<BasePPhoreSite *> > &query_sites );
+                                    vector<BasePPhoreSite *> &query_sites );
 DACLIB::VolumeGrid *build_vol_from_moe_volumesphere( string &vol_rec );
 
 // ***************************************************************************
@@ -84,7 +82,7 @@ void read_moe_ph4_file( TriphicSettings &ts ,
                         PharmPoint &pharm_points ,
                         vector<pair<string,string> > &input_smarts ,
                         vector<pair<string,string> > &smarts_sub_defn ,
-                        vector<vector<BasePPhoreSite *> > &query_sites ,
+                        vector<BasePPhoreSite *> &query_sites ,
                         vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ) {
 
 #ifdef NOTYET
@@ -102,6 +100,9 @@ void read_moe_ph4_file( TriphicSettings &ts ,
   while( ifs.get( c ) ) {
     file_contents += c;
   }
+#ifdef NOTYET
+  cout << "Read " << file_contents.size() << " of file" << endl;
+#endif
 
   // process any feature records
   size_t fs = 1;
@@ -119,7 +120,7 @@ void read_moe_ph4_file( TriphicSettings &ts ,
       build_sites_from_moe_features( next_rec , pharm_points , input_smarts ,
                                      smarts_sub_defn , query_sites );
       // some sites might be selected for various reasons. Translate this.
-      decode_selected_moe_sites( ts , query_sites.back() );
+      decode_selected_moe_sites( ts , query_sites );
     } else if( string( "volumesphere" ) == next_rec.substr( 0 , 12 ) ) {
 #ifdef NOTYET
       cout << "MOE volumesphere" << endl;

@@ -13,6 +13,7 @@
 
 #include "stddefs.H"
 #include "BasePPhoreSite.H"
+#include "SinglePPhoreSite.H" // bad karma!
 #include "OverlayTrans.H"
 
 namespace DACLIB {
@@ -116,7 +117,7 @@ void BasePPhoreSite::copy_data( const BasePPhoreSite &c ) {
 }
 
 // ****************************************************************************
-void BasePPhoreSite::set_coords( double *new_cds ) {
+void BasePPhoreSite::set_coords( const double *new_cds ) {
 
   cds_[0] = new_cds[0];
   cds_[1] = new_cds[1];
@@ -125,7 +126,7 @@ void BasePPhoreSite::set_coords( double *new_cds ) {
 }
 
 // ****************************************************************************
-void BasePPhoreSite::set_coords( float *new_cds ) {
+void BasePPhoreSite::set_coords( const float *new_cds ) {
 
   cds_[0] = new_cds[0];
   cds_[1] = new_cds[1];
@@ -137,11 +138,9 @@ void BasePPhoreSite::set_coords( float *new_cds ) {
 int BasePPhoreSite::get_num_dirs( GtplDefs::DIRS_TYPE dirs_type ) const {
 
   int ret_num = 0;
-  for( int i = 0 ; i < num_dirs_ ; ++i ) {
-    if( dirs_type == dir_types_[i] ) {
+  for( int i = 0 ; i < num_dirs_ ; ++i )
+    if( dirs_type == dir_types_[i] )
       ++ret_num;
-    }
-  }
 
   return ret_num;
 
@@ -150,22 +149,20 @@ int BasePPhoreSite::get_num_dirs( GtplDefs::DIRS_TYPE dirs_type ) const {
 // ****************************************************************************
 const double *BasePPhoreSite::direction( int dir_num ) const {
 
-  if( dir_num < 0 || dir_num >= num_dirs_ ) {
+  if( dir_num < 0 || dir_num >= num_dirs_ )
     return 0;
-  } else {
+  else
     return dir_ + 3 * dir_num;
-  }
 
 }
 
 // ****************************************************************************
 GtplDefs::DIRS_TYPE BasePPhoreSite::direction_type( int dir_num ) const {
 
-  if( dir_num < 0 || dir_num >= num_dirs_ ) {
+  if( dir_num < 0 || dir_num >= num_dirs_ )
     return GtplDefs::UNKNOWN;
-  } else {
+  else
     return dir_types_[dir_num];
-  }
 
 }
 
@@ -213,8 +210,8 @@ void BasePPhoreSite::set_direction( const float *new_dir ,
 float BasePPhoreSite::square_distance( const double *cds ) const {
 
   return ( DACLIB::square( cds[0] - cds_[0] ) +
-	   DACLIB::square( cds[1] - cds_[1] ) +
-	   DACLIB::square( cds[2] - cds_[2] ) );
+      DACLIB::square( cds[1] - cds_[1] ) +
+      DACLIB::square( cds[2] - cds_[2] ) );
 
 }
 
@@ -286,20 +283,27 @@ float BasePPhoreSite::best_dir_alignments( BasePPhoreSite &site ,
                                            vector<int> &dir_order ) {
   
   // needs to be done with num_dirs_ >= site.num_dirs_
-  if( site.num_dirs_ > num_dirs_ )
+  if( site.num_dirs_ > num_dirs_ ) {
     return site.best_dir_alignments( *this , dirs_type , twiddle_if_poss ,
                                      dir_order );
-
+  }
   vector<int> combs;
-  for( int i = 0 ; i < site.num_dirs_ ; ++i )
+  for( int i = 0 ; i < site.num_dirs_ ; ++i ) {
     combs.push_back( i );
+  }
 
   float best_dot = -1.0;
   dir_order = combs;
   do {
+#ifdef NOTYET
+    cout << "Next comb : ";
+    copy( combs.begin() , combs.end() , ostream_iterator<int>( cout , " " ) );
+    cout << " :: " << dirs_type << endl;
+#endif
     // line up on the first direction if appropriate
-    if( twiddle_if_poss && site.get_twiddlable() )
+    if( twiddle_if_poss && site.get_twiddlable() ) {
       site.twiddle( dir_ , combs[0] );
+    }
 
     float cum_dot = 0.0F;
     for( int i = 0 ; i < site.num_dirs_ ; ++i ) {
@@ -322,6 +326,12 @@ void BasePPhoreSite::reorder_dirs( const vector<int> &new_order ) {
 
   double dirs2[9];
   GtplDefs::DIRS_TYPE dt[3];
+#ifdef NOTYET
+  cout << "new orders : " << new_order.size() << " :: ";
+  copy( new_order.begin() , new_order.end() , intOut );
+  cout << endl;
+  cout << "num_dirs : " << num_dirs_ << " : " << get_num_dirs() << endl;
+#endif
 
   for( int i = 0 ; i < std::min( num_dirs_ , int( new_order.size() ) ) ; ++i ) {
     dirs2[3 * i] = dir_[3 * new_order[i]];
@@ -453,16 +463,14 @@ void BasePPhoreSite::write_to_stream( ostream &os ) const {
   os << label_ << endl << type_code_ << endl << type_string_ << endl
      << cds_[0] << " " << cds_[1] << " " << cds_[2] << endl
      << num_dirs_ << endl;
-  for( int i = 0 ; i < num_dirs_ ; ++i ) {
+  for( int i = 0 ; i < num_dirs_ ; ++i )
     os << dir_[3*i] << " " << dir_[3*i+1] << " " << dir_[3*i+2]
                     << " " << dir_types_[i] << endl;
-  }
 
   os << dir_moves_ << endl;
-  if( dir_moves_ != GtplDefs::NONE ) {
+  if( dir_moves_ != GtplDefs::NONE )
     os << twiddle_axis_[0] << " " << twiddle_axis_[1] << " "
                            << twiddle_axis_[2] << endl;
-  }
 
 }
 
@@ -481,9 +489,8 @@ void BasePPhoreSite::read_from_stream( istream &is ) {
   int i;
   is >> i;
   dir_moves_ = (GtplDefs::DIR_MOVES) i;
-  if( dir_moves_ != GtplDefs::NONE ) {
+  if( dir_moves_ != GtplDefs::NONE )
     is >> twiddle_axis_[0] >> twiddle_axis_[1] >> twiddle_axis_[2];
-  }
 
 }
 
@@ -516,24 +523,6 @@ void brief_report_sites( ostream &os , const vector<BasePPhoreSite *> &sites ) {
 float calc_overlay_trans( const vector<BasePPhoreSite *> &sites1 , 
                           const vector<BasePPhoreSite *> &sites2 ,
                           const vector<int> &pairs ,
-                          OverlayTrans &overlay_trans ,
-                          bool use_ring_norm_dirs ,
-                          bool use_h_vec_dirs , bool use_lp_dirs ) {
-
-  vector<float> weights( pairs.size() / 2 , 1.0F );
-  return calc_overlay_trans( sites1 , sites2 , pairs , weights , overlay_trans ,
-                             use_ring_norm_dirs , use_h_vec_dirs , use_lp_dirs );
-
-}
-
-// ****************************************************************************
-// calculate the overlay transformation to move the given pairs of the second
-// vector of PPhoreSites onto the first, returning the RMS of the overlay, but
-// not moving the sites.
-float calc_overlay_trans( const vector<BasePPhoreSite *> &sites1 , 
-                          const vector<BasePPhoreSite *> &sites2 ,
-                          const vector<int> &pairs ,
-                          vector<float> &weights ,
                           OverlayTrans &overlay_trans , bool use_ring_norm_dirs ,
                           bool use_h_vec_dirs , bool use_lp_dirs ) {
 
@@ -549,6 +538,7 @@ float calc_overlay_trans( const vector<BasePPhoreSite *> &sites1 ,
   if( use_ring_norm_dirs ) {
     add_ring_norm_dir_sites( sites1 , sites2 , pairs , cds1 , cds2 );
   }
+
   if( use_h_vec_dirs ) {
     add_dir_sites( GtplDefs::H_VECTOR , sites1 , sites2 , pairs ,
                    cds1 , cds2 );
@@ -562,12 +552,8 @@ float calc_overlay_trans( const vector<BasePPhoreSite *> &sites1 ,
   // OverlayTrans c'tor moves first coords onto 2nd. It centres the coords, so
   // changes the originals, hence the need for cds1_cp and cds2_cp.
   int num_cds = cds2.size() / 3;
-  // might need some more weights
-  for( int i = weights.size() , is = num_cds ; i < is ; ++i ) {
-    weights.push_back( 1.0F );
-  }
 
-  overlay_trans = OverlayTrans( &cds2[0] , &cds1[0] , &weights[0] , num_cds );
+  overlay_trans = OverlayTrans( &cds2[0] , &cds1[0] , num_cds );
   // do the overlay so we can calculate the RMS.
   overlay_trans.overlay( num_cds , &cds2_cp[0] );
 
@@ -607,9 +593,8 @@ void add_ring_norm_dir_sites( const vector<BasePPhoreSite *> &sites1 ,
           break;
         }
       }
-      if( !dir1 ) {
+      if( !dir1 )
         continue;
-      }
       int site2_dir_num = -1;
       for( int j = 0 ; j < 3 ; ++j ) {
         if( GtplDefs::RING_NORMAL == site2->direction_type( j ) ) {
@@ -618,9 +603,8 @@ void add_ring_norm_dir_sites( const vector<BasePPhoreSite *> &sites1 ,
           break;
         }
       }
-      if( !dir2 ) {
+      if( !dir2 )
         continue;
-      }
       double cdir2[3] = { dir2[0] , dir2[1] , dir2[2] };
       const double *sds1 = site1->coords();
       const double *sds2 = site2->coords();
@@ -677,6 +661,7 @@ void add_site_coords( const double *cds , const double *dir ,
 }
 
 // **************************************************************************
+// by convention, sites1 is fixed, sites2 is moving
 void add_dir_sites( GtplDefs::DIRS_TYPE dirs_type ,
                     const vector<BasePPhoreSite *> &sites1 ,
                     const vector<BasePPhoreSite *> &sites2 ,
@@ -689,22 +674,77 @@ void add_dir_sites( GtplDefs::DIRS_TYPE dirs_type ,
   double site1_dirs[9] , site2_dirs[9];
   int nsd1 , nsd2;
   for( int i = 0 , is = pairs.size() ; i < is ; i += 2 ) {
-    BasePPhoreSite *site1 = sites1[pairs[i]];
-    BasePPhoreSite *site2 = sites2[pairs[i+1]];
+    BasePPhoreSite *site1 , *site2;
+    BasePPhoreSite *in_site1 = sites1[pairs[i]] , *in_site2 = sites2[pairs[i+1]];
+
+    bool made_site1( false ) , made_site2( false );
+    if( in_site1->get_twiddlable() || in_site1->get_flippable() ) {
+      site1 = new SinglePPhoreSite;
+      site1->set_flippable( in_site1->get_flippable() );
+      site1->set_twiddlable( in_site1->get_twiddlable() );
+      for( int j = 0 , js = in_site1->get_num_dirs() ; j < js ; ++j ) {
+        site1->set_direction( in_site1->direction( j ) , in_site1->direction_type( j ) ,
+                              -1 ); // -1 makes a new direction
+      }
+      site1->set_coords( in_site1->coords() );
+      site1->set_twiddle_axis( in_site1->twiddle_axis() );
+      made_site1 = true;
+    } else {
+      site1 = in_site1;
+    }
+    if( in_site2->get_twiddlable() || in_site2->get_flippable() ) {
+      site2 = new SinglePPhoreSite;
+      site2->set_flippable( in_site2->get_flippable() );
+      site2->set_twiddlable( in_site2->get_twiddlable() );
+      for( int j = 0 , js = in_site2->get_num_dirs() ; j < js ; ++j ) {
+        site2->set_direction( in_site2->direction( j ) , in_site2->direction_type( j ) ,
+                              -1 ); // -1 makes a new direction
+      }
+      site2->set_coords( in_site2->coords() );
+      site2->set_twiddle_axis( in_site2->twiddle_axis() );
+      made_site2 = true;
+    } else {
+      site2 = in_site2;
+    }
+
+#ifdef NOTYET
+    cout << "Site 1 " << site1->label() << " : " << site1->get_num_dirs() << " and "
+         << "Site 2 " << site2->label() << " : " << site2->get_num_dirs() << endl;
+#endif
 
     get_site_dirs( dirs_type , *site1 , site1_dirs , nsd1 );
-    if( !nsd1 ) continue;
+    if( !nsd1 ) {
+      if( made_site1 ) {
+        delete site1;
+      }
+      if( made_site2 ) {
+        delete site2;
+      }
+      continue;
+    }
     get_site_dirs( dirs_type , *site2 , site2_dirs , nsd2 );
-    if( !nsd2 ) continue;
+    if( !nsd2 ) {
+      if( made_site1 ) {
+        delete site1;
+      }
+      if( made_site2 ) {
+        delete site2;
+      }
+      continue;
+    }
 
-    if( site1->get_twiddlable() ) {
+    if( site2->get_twiddlable() ) {
+      site2->twiddle( *site1 , dirs_type );
+    } else if( site1->get_twiddlable() ) {
       site1->twiddle( *site2 , dirs_type );
     }
-    if( site1->get_flippable() ) {
+    if( site2->get_flippable() ) {
+      site2->flip( *site1 , dirs_type );
+    } else if( site1->get_flippable() ) {
       site1->flip( *site2 , dirs_type );
     }
 
-    // having twiddled and flipped site1, find the best combination of
+    // having twiddled and flipped one site, find the best combination of
     // site1_dirs and site2_dirs of the same type and add them to site
     // coords. This is because sometimes there can be more than one
     // dir of the same type that is neither flippable nor twiddlable
@@ -731,6 +771,14 @@ void add_dir_sites( GtplDefs::DIRS_TYPE dirs_type ,
       add_site_coords( site1->coords() , site1->direction( best1 ) , cds1 );
       add_site_coords( site2->coords() , site2->direction( best2 ) , cds2 );
     }
+
+    if( made_site1 ) {
+      delete site1;
+    }
+    if( made_site2 ) {
+      delete site2;
+    }
+
   }
 
 }

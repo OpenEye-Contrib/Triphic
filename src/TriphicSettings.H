@@ -1,7 +1,6 @@
 //
 // file TriphicSettings.H
 // David Cosgrove
-// AstraZeneca
 // 2nd August 2007
 //
 // This is a public class that holds all the settings that the user used to
@@ -26,7 +25,10 @@ class TriphicSettings {
 public :
 
   TriphicSettings();
-  TriphicSettings( int argc , char **argv );
+  // TriphicSettings( int argc , char **argv );
+
+  // will throw a boost exception if a bad argument is given
+  void parse_args( int argcc , char **argv );
 
   bool operator!() const;
 
@@ -39,16 +41,16 @@ public :
 
   void print_required_sites_and_points( std::ostream &os );
   // make sure the sites in req_sites_or_ and req_sites_and_ appear in query_sites
-  bool check_required_sites( std::vector<std::vector<BasePPhoreSite *> > &query_sites );
-  bool check_required_sites( std::vector<std::vector<BasePPhoreSite *> > &query_sites ,
+  bool check_required_sites( std::vector<BasePPhoreSite *> &query_sites );
+  bool check_required_sites( std::vector<BasePPhoreSite *> &query_sites ,
                              const std::vector<std::string> &req_sites );
   // make sure the sites in req_points_or_ and req_points_and_ appear in query_sites
-  bool check_required_points( std::vector<std::vector<BasePPhoreSite *> > &query_sites );
-  bool check_required_points( std::vector<std::vector<BasePPhoreSite *> > &query_sites ,
+  bool check_required_points( std::vector<BasePPhoreSite *> &query_sites );
+  bool check_required_points( std::vector<BasePPhoreSite *> &query_sites ,
                               const std::vector<std::string> &req_points );
 
-  void pack_contents_into_pvm_buffer();
-  void unpack_contents_from_pvm_buffer();
+  void send_contents_via_mpi( int dest_slave );
+  void receive_contents_via_mpi(); // assumes it's from process rank 0
 
   std::string query_file() const { return query_file_; }
   std::vector<std::string> db_files() const { return db_files_; }
@@ -64,8 +66,14 @@ public :
   bool opt_lig_flexi() const { return opt_lig_flexi_; }
   bool gauss_shape_tanimoto() const { return gauss_shape_tani_; }
   bool grid_shape_tanimoto() const { return grid_shape_tani_; }
+  bool do_omega() const { return do_omega_; }
+  bool do_flipper() const { return do_flipper_; }
+  bool no_warts() const { return no_warts_; }
+  bool do_ions_and_tauts() const { return do_ions_and_tauts_; }
   bool all_best_hits() const { return all_best_hits_; }
   bool dont_do_sub_cliques() const { return dont_do_sub_cliques_; }
+  unsigned int chunk_size() const { return chunk_size_; }
+  void set_chunk_size( unsigned int ni ) { chunk_size_ = ni; }
 
   std::vector<std::string> req_sites_or() const { return req_sites_or_; }
   std::vector<std::string> req_sites_and() const { return req_sites_and_; }
@@ -97,10 +105,7 @@ public :
   float max_prot_clash() const { return max_prot_clash_; }
   float min_inc_vol() const { return min_inc_vol_; }
   float vol_grid_spacing() const { return vol_grid_spacing_; }
-
-  std::string slave_name() const { return slave_name_; }
-  int num_slave_procs() const { return num_slave_procs_; }
-  std:: string pvm_hosts_file() const { return pvm_hosts_file_; }
+  unsigned int restart_number() const { return restart_number_; }
 
   bool print_sites_and_stop() const { return print_sites_and_stop_; }
   bool do_grid_shape_tani_cutoff() const { return do_grid_shape_tani_cutoff_; }
@@ -114,8 +119,11 @@ public :
   bool comma_output() const { return comma_output_; }
   bool output_scores_only() const { return output_scores_only_; }
   bool single_conf_mols() const { return single_conf_mols_; }
+  bool restart() const { return restart_; }
 
 private :
+
+  boost::program_options::options_description desc_;
 
   std::string usage_text_;
   std::string query_file_;
@@ -134,23 +142,23 @@ private :
   bool   opt_lig_rigid_ , opt_lig_flexi_;
   bool   gauss_shape_tani_;
   mutable bool grid_shape_tani_;
+  bool   do_omega_ , do_flipper_;
+  bool   do_ions_and_tauts_;
+  bool   no_warts_;
   bool   all_best_hits_; /* keep the best-scoring hit for each clique, rather
                             than the best-scoring hit for each target. Doesn't
                             over-ride max_hits_. */
   bool dont_do_sub_cliques_; /* when doing a clique, don't also generate all
                                 sub-cliques of at least size min_clique_size_.
                                 Default is to generate them. */
+  bool restart_; // whether it's a restart job
+  unsigned int chunk_size_; // for parallel jobs
 
   std::vector<std::string> req_sites_or_ , req_sites_and_;
   std::vector<std::string> req_points_or_ , req_points_and_;
   std::vector<std::string> ignore_sites_;
   std::vector<std::pair<std::string,std::string> > not_smarts_list_;
   std::vector<std::string> grid_vol_files_;
-
-  // for parallel runs
-  std::string slave_name_;
-  int    num_slave_procs_;
-  std:: string pvm_hosts_file_;
 
   mutable GtplDefs::SCORE_METHOD score_method_;
   mutable GtplDefs::DIRS_USAGE  ring_norm_usage_ , h_vector_usage_ , lp_usage_;
@@ -163,13 +171,14 @@ private :
   float max_mmff_nrg_ , min_surf_vol_ , max_prot_clash_;
   float min_inc_vol_;
   float vol_grid_spacing_;
+  unsigned int restart_number_; // molecule number for restart job
   mutable bool do_grid_shape_tani_cutoff_ , do_gauss_shape_tani_cutoff_;
   mutable bool do_mmff_nrg_cutoff_ , do_surf_vol_cutoff_;
   mutable bool do_prot_clash_cutoff_ , do_inc_vol_cutoff_;
   bool no_hit_conf_number_ , output_query_to_hits_ , print_sites_and_stop_;
   bool comma_output_ , output_scores_only_ , single_conf_mols_;
 
-  void build_program_options( boost::program_options::options_description &desc );
+  void build_program_options();
   void read_database_files_file();
 
 };

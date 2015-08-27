@@ -8,6 +8,7 @@
 // and put the results into a list of OverlayScore objects.
 
 #include <list>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -47,31 +48,39 @@ bool cutoffs_ok( const OverlayScore &ov_score ,
                  bool do_prot_clash_co , float prot_clash_cutoff ,
                  bool do_mmff_co , float mmff_cutoff ) {
 
-  if( do_size_co && ov_score.num_sites() < size_cutoff )
+  if( do_size_co && ov_score.num_sites() < size_cutoff ) {
     return false;
+  }
 
-  if( do_rms_co && ov_score.rms() > rms_cutoff )
+  if( do_rms_co && ov_score.rms() > rms_cutoff ) {
     return false;
+  }
 
   if( do_grid_shape_tani_co &&
-      ov_score.grid_shape_tanimoto() < grid_shape_tani_cutoff )
+      ov_score.grid_shape_tanimoto() < grid_shape_tani_cutoff ) {
     return false;
+  }
 
   if( do_gauss_shape_tani_co &&
-      ov_score.gauss_shape_tanimoto() < gauss_shape_tani_cutoff )
+      ov_score.gauss_shape_tanimoto() < gauss_shape_tani_cutoff ) {
     return false;
+  }
 
-  if( do_surf_ovlp_co && ov_score.surface_volume() < surface_overlap_cutoff )
+  if( do_surf_ovlp_co && ov_score.surface_volume() < surface_overlap_cutoff ) {
     return false;
+  }
 
-  if( do_inc_vol_co && ov_score.included_vol() < inc_vol_cutoff )
+  if( do_inc_vol_co && ov_score.included_vol() < inc_vol_cutoff ) {
     return false;
+  }
 
-  if( do_prot_clash_co && ov_score.protein_clash() > prot_clash_cutoff )
+  if( do_prot_clash_co && ov_score.protein_clash() > prot_clash_cutoff ) {
     return false;
+  }
 
-  if( do_mmff_co && ov_score.get_mmff_nrg() > mmff_cutoff )
+  if( do_mmff_co && ov_score.get_mmff_nrg() > mmff_cutoff ) {
     return false;
+  }
 
   return true;
 
@@ -103,28 +112,24 @@ bool required_points_satisfied( const OverlayScore &ov_score ,
         break;
       }
     }
-    if( num_points_satis ) {
+    if( num_points_satis )
       break; // we only need one of them
-    }
   }
-  if( !required_points_or.empty() && !num_points_satis ) {
+  if( !required_points_or.empty() && !num_points_satis )
     return false;
-  }
 
   // now do the ANDs. If a point was in the OR list, we need two different sites of
   // that type.
   map<string,int> num_needed;
-  for( int i = 0 , is = required_points_or.size() ; i < is ; ++i ) {
+  for( int i = 0 , is = required_points_or.size() ; i < is ; ++i )
     num_needed.insert( make_pair( required_points_or[i] , 1 ) );
-  }
   map<string,int>::iterator p;
   for( int i = 0 , is = required_points_and.size() ; i < is ; ++i ) {
     p = num_needed.find( required_points_and[i] );
-    if( p == num_needed.end() ) {
+    if( p == num_needed.end() )
       num_needed.insert( make_pair( required_points_and[i] , 1 ) );
-    } else {
+    else
       p->second++;
-    }
   }
 
   for( int i = 0 , is = required_points_and.size() ; i < is ; ++i ) {
@@ -136,9 +141,8 @@ bool required_points_satisfied( const OverlayScore &ov_score ,
       }
     }
     p = num_needed.find( required_points_and[i] );
-    if( num_points_satis < p->second ) {
+    if( num_points_satis < p->second )
       return false;
-    }
   }
 
   return true;
@@ -182,12 +186,10 @@ bool required_sites_satisfied( const OverlayScore &ov_score ,
       }
     }
   }
-  if( !required_sites_or.empty() && !num_or_sites_satis ) {
+  if( !required_sites_or.empty() && !num_or_sites_satis )
     return false;
-  }
-  if( num_and_sites_satis < required_sites_and.size() ) {
+  if( num_and_sites_satis < required_sites_and.size() )
     return false;
-  }
   return true;
 
 }
@@ -197,9 +199,8 @@ void add_query_clique_site_info( const vector<BasePPhoreSite *> &query_sites ,
                                  const vector<int> &clique , OEMolBase &mol ) {
 
   string site_names;
-  for( unsigned int i = 0 , is = clique.size() ; i < is ; i += 2 ) {
+  for( unsigned int i = 0 , is = clique.size() ; i < is ; i += 2 )
     site_names += query_sites[clique[i]]->get_full_name() + " ";
-  }
 
   // chop the last space off
   site_names = site_names.substr( 0 , site_names.length() - 1 );
@@ -213,9 +214,8 @@ void add_target_clique_site_info( const vector<SinglePPhoreSite *> &target_sites
                                   const vector<int> &clique , OEMolBase &mol ) {
 
   string site_names;
-  for( unsigned int i = 1 , is = clique.size() ; i < is ; i += 2 ) {
+  for( unsigned int i = 1 , is = clique.size() ; i < is ; i += 2 )
     site_names += target_sites[clique[i]]->get_full_name() + " ";
-  }
 
   // chop the last space off
   site_names = site_names.substr( 0 , site_names.length() - 1 );
@@ -245,13 +245,13 @@ void overlay_mols_and_sites( OEMol *target_mol ,
                              bool use_h_vectors , bool use_lps ,
                              OEMolBase *&target_conf ) {
 
-  vector<SinglePPhoreSite *> ov_target_sites;
   int target_conf_num = ov_score->get_moving_conf();
   target_conf = get_given_oeconf( *target_mol , target_conf_num , false );
   if( !target_conf ) {
     return;
   }
 
+  vector<SinglePPhoreSite *> ov_target_sites;
   for( int j = 0 , js = target_sites.size() ; j < js ; ++j ) {
     ov_target_sites.push_back( new SinglePPhoreSite( *target_sites[j] ) );
   }
@@ -304,10 +304,9 @@ void overlay_sites( const vector<BasePPhoreSite *> &query_sites ,
 
   const int *sites = ov_score->sites();
   for( int i = 0 , is = 2 * ov_score->num_sites() ; i < is ; i += 2 ) {
-    if( ov_target_sites[sites[i+1]]->get_twiddlable() && use_h_vectors ) {
+    if( ov_target_sites[sites[i+1]]->get_twiddlable() && use_h_vectors )
       ov_target_sites[sites[i+1]]->twiddle( *query_sites[sites[i]] ,
-					    GtplDefs::H_VECTOR );
-    }
+          GtplDefs::H_VECTOR );
   }
 
 }
@@ -336,32 +335,94 @@ void overlay_mol( OEMol *target_mol ,
 }
 
 // *************************************************************************
+void increment_score_ranks( vector<pair<OverlayScore *,float> > &scores ,
+                            map<OverlayScore *,int> &rank_scores ,
+                            bool descending_sort ) {
+
+  if( descending_sort ) {
+    sort( scores.begin() , scores.end() ,
+          bind( greater<float>() ,
+                bind( &pair<OverlayScore *,float>::second , _1 ) ,
+                bind( &pair<OverlayScore *,float>::second , _2 ) ) );
+  } else {
+    sort( scores.begin() , scores.end() ,
+          bind( less<float>() ,
+                bind( &pair<OverlayScore *,float>::second , _1 ) ,
+                bind( &pair<OverlayScore *,float>::second , _2 ) ) );
+  }
+
+  float last_score = scores.front().second;
+  int curr_rank = 1;
+
+  typedef pair<OverlayScore *,float> OSF;
+  BOOST_FOREACH( OSF s , scores ) {
+    map<OverlayScore *,int>::iterator p = rank_scores.find( s.first );
+    if( s.second != last_score ) {
+      ++curr_rank;
+    }
+    p->second += curr_rank;
+    last_score = s.second;
+  }
+
+}
+
+// *************************************************************************
+void add_overlay_score_to_normal_list( OverlayScore *new_score ,
+                                       list<OverlayScore *> &clique_overlays ) {
+
+
+  // put the new score into clique_overlays
+  list<OverlayScore *>::iterator where =
+      lower_bound( clique_overlays.begin() , clique_overlays.end() ,
+                   new_score , OverlayScoreMore() );
+  clique_overlays.insert( where , new_score );
+
+#ifdef NOTYET
+  if( !clique_overlays.empty() ) {
+    cout << "front score : " << clique_overlays.front()->get_moving_mol_name() << " : " << clique_overlays.front()->get_moving_conf() << " : ";
+    clique_overlays.front()->write_scores_to_stream( cout , " " );
+    cout << endl;
+    cout << "back score : " << clique_overlays.back()->get_moving_mol_name() << " : " << clique_overlays.back()->get_moving_conf() << " : ";
+    clique_overlays.back()->write_scores_to_stream( cout , " " );
+    cout << endl;
+    cout << "insertion position : " << std::distance( clique_overlays.begin() , where ) << endl;
+  }
+#endif
+
+}
+
+// *************************************************************************
 void add_overlay_score_to_list( GtplDefs::SCORE_METHOD score_method ,
                                 unsigned int max_num_hits ,
                                 OverlayScore *new_score ,
                                 list<OverlayScore *> &clique_overlays ) {
 
 #ifdef NOTYET
+  cout << "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" << endl;
   cout << "This hit : " << new_score->get_moving_mol_name() << " : " << new_score->get_moving_conf() << " : ";
-  new_score->write_scores_to_stream( cout , " " );
+  // new_score->write_scores_to_stream( cout , " " );
+  cout << new_score->hphobe_score() << " , " << new_score->hbond_score() << " , " << new_score->vol_score();
   cout << endl;
   cout << "Current list" << endl;
-  BOOST_FOREACH( OverlayScore *h , clique_overlays ) {
-    cout << h->get_moving_mol_name() << " : " << h->get_moving_conf() << " : ";
-    h->write_scores_to_stream( cout , " " );
+  for( list<OverlayScore *>::iterator p = clique_overlays.begin() ; p != clique_overlays.end() ; ++p ) {
+    cout << std::distance( clique_overlays.begin() , p ) << " : "
+         << (*p)->get_moving_mol_name() << " : " << (*p)->get_moving_conf() << " : ";
+    //   (*p)->write_scores_to_stream( cout , " " );
+    cout << (*p)->hphobe_score() << " , " << (*p)->hbond_score() << " , " << (*p)->vol_score();
     cout << endl;
   }
 #endif
 
-
-  list<OverlayScore *>::iterator where;
-
   if( clique_overlays.empty() ) {
+#ifdef NOTYET
+    cout << "first one" << endl;
+#endif
     clique_overlays.push_back( new_score );
     return;
   }
 
   // if this overlay already exists, add as a similar.
+  list<OverlayScore *>::iterator where;
   for( where = clique_overlays.begin() ; where != clique_overlays.end() ; ++where ) {
     if( overlay_score_names_and_sites_match( *where , new_score ) ) {
       break;
@@ -369,6 +430,21 @@ void add_overlay_score_to_list( GtplDefs::SCORE_METHOD score_method ,
   }
 
   if( where != clique_overlays.end() ) {
+#ifdef NOTYET
+    cout << "Found a similar" << endl;
+    cout << "where : ";
+    (*where)->write_scores_to_stream( cout , " " );
+    cout << endl;
+    cout << "new_score : ";
+    new_score->write_scores_to_stream( cout , " " );
+    cout << endl;
+#endif
+    if( *(*where) == *new_score ) {
+      // if they're the same, they're not similar. This normally arises if it's
+      // a restart job and it's re-doing a bit of the search.
+      delete new_score;
+      return;
+    }
     // if (*where) is better than new_score, add new_score to (*where), otherwise
     // need to add (*where) and all its similars to new_score
     if( *(*where) > *new_score ) {
@@ -377,17 +453,27 @@ void add_overlay_score_to_list( GtplDefs::SCORE_METHOD score_method ,
       return;
     } else {
       // add (*where) to new_score and remove (*where) from clique_overlays
+      // new_score needs to be added to clique_overlays in the appropriate
+      // place, so don't return at this point.
       new_score->add_similars( *where );
       delete *where; // don't need it any more
       clique_overlays.erase( where );
     }
   }
 
-  // put the new score into clique_overlays
-  where = lower_bound( clique_overlays.begin() , clique_overlays.end() ,
-                       new_score , OverlayScoreMore() );
+  // pareto ranking methods need to be dealt with differently from those that
+  // use a straightforward score
+  add_overlay_score_to_normal_list( new_score , clique_overlays );
 
-  clique_overlays.insert( where , new_score );
+#ifdef NOTYET
+  cout << "New list" << endl;
+  for( list<OverlayScore *>::iterator p = clique_overlays.begin() ; p != clique_overlays.end() ; ++p ) {
+    cout << std::distance( clique_overlays.begin() , p ) << " : "
+         << (*p)->get_moving_mol_name() << " : " << (*p)->get_moving_conf() << " : ";
+    cout << (*p)->hphobe_score() << " , " << (*p)->hbond_score() << " , " << (*p)->vol_score();
+    cout << endl;
+  }
+#endif
 
 }
 
@@ -401,7 +487,7 @@ void add_overlay_score_to_list( GtplDefs::SCORE_METHOD score_method ,
 void score_and_store_cliques( const string &query_name , int query_conf_num ,
                               OEMolBase *query_conf ,
                               vector<BasePPhoreSite *> &query_sites ,
-                              vector<vector<SinglePPhoreSite *> > &query_score_sites ,
+                              vector<SinglePPhoreSite *> &query_score_sites ,
                               vector<SinglePPhoreSite *> &target_sites ,
                               OEMol *target_mol , int target_conf_num ,
                               shared_ptr<DACLIB::VolumeGrid> &query_solid_grid ,
@@ -488,7 +574,7 @@ void score_and_store_cliques( const string &query_name , int query_conf_num ,
                               check_lps , lpt ) ) {
       if( new_score->total_vol() < 0.0F ||
           do_grid_shape_tani_co || do_inc_vol_co ||
-	  do_surf_ovlp_co || do_prot_clash_co ) {
+          do_surf_ovlp_co || do_prot_clash_co ) {
         new_score->calc_volume_scores( new_score->get_ov_conf() , query_solid_grid ,
                                        protein_grid );
       }
@@ -499,7 +585,7 @@ void score_and_store_cliques( const string &query_name , int query_conf_num ,
       // if we're optimising, it'll already be done, but single point calculation
       // delayed until necessary
       if( szybki && OERunType::SinglePoint == szybki->GetRunType() &&
-          numeric_limits<float>::max() == mmff_cutoff ) {
+          numeric_limits<float>::max() != mmff_cutoff ) {
         OESzybkiResults sr;
         float mmff_nrg;
         if( !(*szybki)( *new_score->get_ov_conf() , sr ) ) {
@@ -543,7 +629,7 @@ void score_and_store_cliques( const string &query_name , int query_conf_num ,
 void score_and_store_cliques_no_overlay( const string &query_name ,
                                          OEMolBase *query_conf ,
                                          vector<BasePPhoreSite *> &query_sites ,
-                                         vector<vector<SinglePPhoreSite *> > &query_score_sites ,
+                                         vector<SinglePPhoreSite *> &query_score_sites ,
                                          vector<SinglePPhoreSite *> &target_sites ,
                                          OEMol *target_mol , int target_conf_num ,
                                          shared_ptr<DACLIB::VolumeGrid> &query_solid_grid ,
@@ -615,7 +701,7 @@ void score_and_store_cliques_no_overlay( const string &query_name ,
                               check_lps , lpt ) ) {
       if( new_score->total_vol() < 0.0F ||
           do_grid_shape_tani_co || do_inc_vol_co ||
-	  do_surf_ovlp_co || do_prot_clash_co ) {
+          do_surf_ovlp_co || do_prot_clash_co ) {
         // do the volume scores
         new_score->calc_volume_scores( new_score->get_ov_conf() , query_solid_grid , protein_grid );
       }

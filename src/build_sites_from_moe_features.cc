@@ -322,7 +322,7 @@ void build_sites_from_moe_features( string &moe_features ,
                                     PharmPoint &pharm_points ,
                                     vector<pair<string,string> > &input_smarts ,
                                     vector<pair<string,string> > &smarts_sub_defn ,
-                                    vector<vector<BasePPhoreSite *> > &query_sites ) {
+                                    vector<BasePPhoreSite *> &query_sites ) {
 
 #ifdef NOTYET
   cout << "build_sites_from_moe_features : " << moe_features << endl;
@@ -341,8 +341,6 @@ void build_sites_from_moe_features( string &moe_features ,
   vector<pair<string,string> > moe_names_to_points_names;
   map_moe_names_to_points_names( pharm_points , moe_names_to_points_names );
 
-  vector<BasePPhoreSite *> new_sites;
-
   // first line of incoming string (up to \n) is a header line
   size_t i = 0;
   while( '\n' != moe_features[i] ) {
@@ -351,16 +349,14 @@ void build_sites_from_moe_features( string &moe_features ,
   moe_features = moe_features.substr( i + 1 );
   // process the features into sites, irrespective of type string
   make_raw_moe_sites( moe_features , pharm_points , moe_names_to_points_names ,
-                      new_sites );
+                      query_sites );
   // various refinements because some of the sites are extension points
   // which may need to be made directions on the parent site
-  refine_moe_sites( new_sites , moe_names_to_points_names );
+  refine_moe_sites( query_sites , moe_names_to_points_names );
 
 #ifdef NOTYET
-  cout << "Made " << new_sites.size() << " MOE query sites" << endl;
+  cout << "Made " << query_sites.size() << " MOE query sites" << endl;
 #endif
-
-  query_sites.push_back( new_sites );
 
 }
 

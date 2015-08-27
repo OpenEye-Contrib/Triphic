@@ -5,7 +5,7 @@
 // 10th October 2006
 //
 // This is the interface for the abstract base class BasePPhoreSite, from
-// which will be derived at least SinglePPhoreSite,
+// which will be derived at least SinglePPhoreSite and MultiPPhoreSite, the latter
 // being created from 1 or more of the former after, for example, clustering.
 
 #ifndef DAC_BASE_PPHORE_SITE__
@@ -28,29 +28,29 @@ protected :
   std::string   label_;
 
   int      type_code_; /* the type of the pharmacophore site, indexing into the
-			  external list of types */
+        external list of types */
   std::string   type_string_; // the string equivalent, won't be used for searching
 
   double   cds_[3];
   mutable double dir_[9]; /* direction for the site if, e.g., it's a ring
-			     centroid. We're allowing up to 3 now, for
-			     H-vectors and lone pairs as well. */
+           centroid. We're allowing up to 3 now, for
+           H-vectors and lone pairs as well. */
   int      num_dirs_; // number of dirs to use
   GtplDefs::DIRS_TYPE dir_types_[3];
 
   GtplDefs::DIR_MOVES dir_moves_; // whether the direction vector can be rotated
   double    twiddle_axis_[3]; /* axis around which it may be rotated for instance
-				 if the vector is an OH, the C-O bond */
+         if the vector is an OH, the C-O bond */
 
-  // virtual sites, as defined in JCAMD 26, 451-472 (2012), Robin's pphore
-  // paper. there can be up to 12 sites.  The positions here are, like the dir_
-  // stuff, relative to cds_ so to get their actual positions they need to be
-  // added to cds_.
+  // virtual sites, as defined in JCAMD 26, 451-472 (2012) Robin's pphore paper.
+  // there can be up to 12 sites.  The positions here are, like the dir_ stuff,
+  // relative to cds_ so to get their actual positions they need to be added
+  // to cds_.
   double   virt_sites_[36];
   int      num_virt_sites_;
-  // as part of the scoring of overlays, 1 of the virtual sites might be
-  // selected as the key one, in that it clusters with virtual sites from other
-  // sites. If there is such a site, gives its number, otherwise -1.
+  // as part of the scoring of overlays, 1 of the virtual sites might be selected
+  // as the key one, in that it clusters with virtual sites from other sites.
+  // If there is such a site, gives its number, otherwise -1.
   int      active_virt_site_;
 
   bool     selected_;
@@ -62,17 +62,15 @@ public :
 
   BasePPhoreSite();
   // tc and ts are the type code and type string respectively.
-  BasePPhoreSite( const double cds[3] , const double dir[3] , int tc ,
-		  const std::string &ts , const std::string &lbl ,
-		  bool use_dir );
+  BasePPhoreSite( const double cds[3] , const double dir[3] , int tc , const std::string &ts ,
+  const std::string &lbl , bool use_dir );
   BasePPhoreSite( const BasePPhoreSite &c ) { copy_data( c ); };
 
   virtual ~BasePPhoreSite() = 0;
 
   BasePPhoreSite &operator=( const BasePPhoreSite &c ) {
-    if( this == &c ) {
+    if( this == &c )
       return *this;
-    }
     copy_data( c );
     return *this;
   }
@@ -85,8 +83,8 @@ public :
   int get_num_dirs( GtplDefs::DIRS_TYPE ) const;
 
   const double *coords() { return cds_; }
-  void set_coords( double *new_cds );
-  void set_coords( float *new_cds );
+  void set_coords( const double *new_cds );
+  void set_coords( const float *new_cds );
 
   const double *direction( int dir_num = 0 ) const;
   GtplDefs::DIRS_TYPE direction_type( int dir_num ) const;
@@ -125,11 +123,11 @@ public :
     dir_moves_ = dir_moves;
   }
   const double *twiddle_axis() const { return twiddle_axis_; }
-  void set_twiddle_axis( float axis[3] ) {
+  void set_twiddle_axis( const float axis[3] ) {
     twiddle_axis_[0] = axis[0]; twiddle_axis_[1] = axis[1];
     twiddle_axis_[2] = axis[2];
   }
-  void set_twiddle_axis( double axis[3] ) {
+  void set_twiddle_axis( const double axis[3] ) {
     twiddle_axis_[0] = axis[0]; twiddle_axis_[1] = axis[1];
     twiddle_axis_[2] = axis[2];
   }

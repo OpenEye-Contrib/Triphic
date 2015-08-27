@@ -76,26 +76,28 @@ protected :
   float        included_vol_; // intersection volume of all mols
   float        total_vol_; // total occupied volume
   float        grid_shape_tanimoto_; /* calculated between first n-1 mols and nth,
-					using the VolumeGrid method */
+          using the VolumeGrid method */
   float        gauss_shape_tanimoto_; /* calculated using ShapeTanimoto object,
-					 only used in Triphic but more convenient
-					 here. bad design, I guess, but this is
-					 a retro-fit. */
+           only used in Triphic but more convenient
+           here. bad design, I guess, but this is
+           a retro-fit. */
   float        surface_vol_; // included volumes of all molecules
   float        protein_clash_; /* included volume with another molecule, presumed
-				  to be a protein active site. -FLOAT_MAX if
-				  not used. */
+          to be a protein active site. -FLOAT_MAX if
+          not used. */
   float        mmff_nrg_; // between protein and ligand
   int          num_sims_; /* number of overlays with the same sites
-			     as this one, but with poorer scores */
+           as this one, but with poorer scores */
   float        clip_score_ , clique_tanimoto_;
-
 
   // intersection volume with 1 or more named arbitrary VolumeGrids.
   std::vector<std::pair<std::string,float> > grid_vols_;
 
   // score method for comparison between 2 scores
   static GtplDefs::SCORE_METHOD score_method_;
+  // the reference overlay is the query overlaid onto itself, for use in the
+  // Pareto rankings
+  static boost::shared_ptr<OverlayScore> ref_ov_;
 
   boost::scoped_ptr<OverlayTrans> ov_trans_;
   // copies of the moving sites and conformation, overlaid using the clique
@@ -117,7 +119,7 @@ public :
   OverlayScore( const std::string &fix_mol_name , const std::string &mov_mol_name ,
                 int fix_conf_num , int mov_conf_num , const std::vector<int> &clique ,
                 const std::vector<BasePPhoreSite *> &fixed_sites ,
-                const std::vector<std::vector<SinglePPhoreSite *> > &fixed_score_sites ,
+                const std::vector<SinglePPhoreSite *> &fixed_score_sites ,
                 const std::vector<SinglePPhoreSite *> &moving_sites ,
                 OEChem::OEMolBase &fixed_conf , OEChem::OEMol &moving_mol ,
                 boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ,
@@ -134,6 +136,16 @@ public :
   // in parallel triphic to create an object from data sent between
   // master and slave.
   OverlayScore( const std::string &str );
+
+  // this one builds itself from a string of scores from a scores output file,
+  // a conformation, assumed to be the overlaid one associated with the scores,
+  // a header line taken from a scores file and the separator string. It's
+  // for restarting a job from an intermediate output set.
+  OverlayScore( boost::shared_ptr<OEChem::OEMolBase> &hc ,
+                const std::string &scores_line ,
+                const std::string &headers_line ,
+                const std::string sep ,
+                bool no_hit_conf_number );
 
   OverlayScore( const OverlayScore &ovs );
 
@@ -199,8 +211,8 @@ public :
                            boost::shared_ptr<DACLIB::VolumeGrid> &target_solid_grid ,
                            boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                            const std::vector<std::pair<std::string,DACLIB::VolumeGrid *> > &vol_grids );
-  void calc_protein_clash( boost::shared_ptr<DACLIB::VolumeGrid> &mol_grid ,
-                           boost::shared_ptr<DACLIB::VolumeGrid> &prot_grid );
+  void calc_protein_clash( DACLIB::VolumeGrid *mol_grid ,
+                           DACLIB::VolumeGrid *prot_grid );
 
   void overlay_mol_and_sites( const std::vector<BasePPhoreSite *> &fixed_sites ,
                               const std::vector<SinglePPhoreSite *> &moving_sites ,
@@ -240,9 +252,14 @@ public :
   
   // calculate the hphobe, donor and acceptor scores. The target volume grid is
   // needed for calculating the occlusion of virtual donor and acceptor sites.
-  void calc_robins_scores( const std::vector<std::vector<SinglePPhoreSite *> > &fixed_score_sites ,
+  void calc_robins_scores( const std::vector<SinglePPhoreSite *> &fixed_score_sites ,
                            const std::vector<SinglePPhoreSite *> &moving_sites ,
                            boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid );
+  // use the reference overlay to make a single number for Robin's Pareto ranking
+  float calc_robins_pareto_score( const OverlayScore &os ) const;
+  // use the reference overlay to make a single number for Overall Pareto ranking
+  float calc_overall_pareto_score( const OverlayScore &os ) const;
+
   void calc_directional_hphobe_score( const std::vector<std::vector<SinglePPhoreSite *> > &sites );
   void calc_hbond_score( const std::vector<std::vector<SinglePPhoreSite *> > &sites ,
                          boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid );
@@ -311,9 +328,16 @@ public :
     score_method_ = new_method;
   }
   static GtplDefs::SCORE_METHOD get_score_method() { return score_method_; }
+  static void set_reference_overlay( OverlayScore *ro ) {
+    ref_ov_ = boost::shared_ptr<OverlayScore>( ro );
+  }
+  const OverlayScore *get_reference_overlay() const {
+    return ref_ov_.get();
+  }
 
   bool operator<( const OverlayScore &rhs ) const;
   bool operator>( const OverlayScore &rhs ) const;
+  bool operator==( const OverlayScore &rhs ) const; // equal if operator<< gives same for both
 
   // in these functions, it's not the numerical value that's less, it's what
   // that means. hence, a bigger protein clash is a poorer score, so > is used
@@ -336,6 +360,9 @@ public :
 // check that the two molecules and the sites are the same
 bool overlay_score_names_and_sites_match( const OverlayScore *a ,
                                           const OverlayScore *b );
+
+std::string remove_conf_num_from_mol_name( const std::string &mol_name );
+
 
 // so we can sort them with STL functions
 class OverlayScoreMore :

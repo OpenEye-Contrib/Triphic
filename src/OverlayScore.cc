@@ -12,6 +12,8 @@
 #include <numeric>
 
 #include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/regex.hpp>
 #include <boost/bind.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
@@ -47,6 +49,7 @@ OEMolBase *get_given_oeconf( OEMol &mol , int conf_num ,
 void overlay_oemolbase( OEMolBase &mol , const OverlayTrans &ot );
 
 GtplDefs::SCORE_METHOD OverlayScore::score_method_ = GtplDefs::RMS_AND_SIZE;
+shared_ptr<OverlayScore> OverlayScore::ref_ov_;
 
 // ******************************************************************************
 OverlayScore::OverlayScore() : fixed_mol_name_( string( "Query" ) ) ,
@@ -69,7 +72,7 @@ OverlayScore::OverlayScore( const string &fix_mol_name ,
                             int fix_conf_num , int mov_conf_num ,
                             const vector<int> &clique ,
                             const vector<BasePPhoreSite *> &fixed_sites ,
-                            const vector<vector<SinglePPhoreSite *> > &fixed_score_sites ,
+                            const vector<SinglePPhoreSite *> &fixed_score_sites ,
                             const vector<SinglePPhoreSite *> &moving_sites ,
                             OEMolBase &fixed_conf , OEMol &moving_mol ,
                             shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ,
@@ -146,8 +149,7 @@ OverlayScore::OverlayScore( const string &str ) :
   surface_vol_( -1.0F ) ,
   protein_clash_( -numeric_limits<float>::max() ) ,
   mmff_nrg_( numeric_limits<float>::max() ) ,
-  num_sims_( 0 ) , clip_score_( -1.0F ) , clique_tanimoto_( -1.0F ) ,
-  ov_trans_( 0 ) {
+  num_sims_( 0 ) , clip_score_( -1.0F ) , clique_tanimoto_( -1.0F ) {
 
   istringstream iss( str );
   string tmp;
@@ -214,7 +216,56 @@ OverlayScore::OverlayScore( const string &str ) :
 }
 
 // ******************************************************************************
-OverlayScore::OverlayScore(  const OverlayScore &ovs ) {
+// this one builds itself from a string of scores from a scores output file,
+// a conformation, assumed to be the overlaid one associated with the scores,
+// a header line taken from a scores file and the separator string. It's
+// for restarting a job from an intermediate output set.
+OverlayScore::OverlayScore( shared_ptr<OEMolBase> &hc , const string &scores_line ,
+                            const string &headers_line , const string sep ,
+                            bool no_hit_conf_number ) {
+
+  ov_conf_ = hc; // the easy bit first
+
+  vector<string> headers_splits , scores_splits;
+  split_regex( headers_splits , headers_line , regex( sep ) );
+  for( vector<string>::iterator p = headers_splits.begin() ; p != headers_splits.end() ; ++p ) {
+    cout << *p << endl;
+  }
+  split_regex( scores_splits , scores_line , regex( sep ) );
+  for( vector<string>::iterator p = scores_splits.begin() ; p != scores_splits.end() ; ++p ) {
+    cout << *p << endl;
+  }
+
+  moving_mol_name_ = scores_splits[0];
+  if( no_hit_conf_number ) {
+    remove_conf_num_from_mol_name( moving_mol_name_ );
+  }
+  num_sites_ = lexical_cast<int>( scores_splits[1] );
+  rms_ = lexical_cast<float>( scores_splits[2] );
+  hphobe_score_ = lexical_cast<float>( scores_splits[3] );
+  hbond_score_ = lexical_cast<float>( scores_splits[4] );
+  vol_score_ = lexical_cast<float>( scores_splits[5] );
+  included_vol_ = lexical_cast<float>( scores_splits[6] );
+  total_vol_ = lexical_cast<float>( scores_splits[7] );
+  grid_shape_tanimoto_ = lexical_cast<float>( scores_splits[8] );
+  gauss_shape_tanimoto_ = lexical_cast<float>( scores_splits[9] );
+  surface_vol_ = lexical_cast<float>( scores_splits[10] );
+  protein_clash_ = lexical_cast<float>( scores_splits[11] );
+  mmff_nrg_ = lexical_cast<float>( scores_splits[12] );
+  clique_tanimoto_ = lexical_cast<float>( scores_splits[14] );
+  clip_score_ = lexical_cast<float>( scores_splits[15] );
+  num_sims_ = lexical_cast<int>( scores_splits[16] );
+  int gvs = lexical_cast<int>( scores_splits[17] );
+  grid_vols_ = vector<pair<string,float> >( gvs , make_pair( string( "" ) , 0.0F ) );
+  for( int i = 0 ; i < gvs ; ++i ) {
+    grid_vols_[i].first = headers_splits[18 + i];
+    grid_vols_[i].second = lexical_cast<float>( scores_splits[18 + i] );
+  }
+
+}
+
+// ******************************************************************************
+OverlayScore::OverlayScore( const OverlayScore &ovs ) {
 
   copy_data( ovs );
 
@@ -266,15 +317,13 @@ void OverlayScore::calc_volume_scores( scoped_ptr<DACLIB::VolumeGrid> &mol_grid 
                                        shared_ptr<DACLIB::VolumeGrid> &target_solid_grid ,
                                        shared_ptr<DACLIB::VolumeGrid> &protein_grid ) {
 
-  float temp;
-
   if( protein_grid ) {
-    mol_grid->common_volume( *protein_grid , protein_clash_ , temp );
+    calc_protein_clash( mol_grid.get() , protein_grid.get() );
   }
 
   if( !target_solid_grid ) {
     return; /* can't do anything else. This can happen if, for example, it's
-	       a Triphic sites-only query. */
+         a Triphic sites-only query. */
   }
 
   mol_grid->common_volume( *target_solid_grid , included_vol_ , surface_vol_ );
@@ -431,12 +480,16 @@ void OverlayScore::calc_volume_scores( OEMolBase *mol ,
 }
 
 // ******************************************************************************
-void OverlayScore::calc_protein_clash( boost::shared_ptr<DACLIB::VolumeGrid> &mol_grid ,
-                                       boost::shared_ptr<DACLIB::VolumeGrid> &prot_grid ) {
+// protein clash is 1.0 - the shape tanimoto between protein and mol, so giving
+// higher values to lower overlaps. They'll be pretty close to 1.0, though, as
+// the protein will be much bigger than the molecule.
+void OverlayScore::calc_protein_clash( DACLIB::VolumeGrid *mol_grid ,
+                                       DACLIB::VolumeGrid *prot_grid ) {
 
-  float temp;
+  float temp1 , temp2;
   if( prot_grid && mol_grid ) {
-    mol_grid->common_volume( *prot_grid , protein_clash_ , temp );
+    mol_grid->common_volume( *prot_grid , temp1 , temp2 );
+    protein_clash_ = temp1;
   }
 
 }
@@ -461,6 +514,24 @@ void OverlayScore::overlay_mol_and_sites( const vector<BasePPhoreSite *> &fixed_
   }
 
   if( do_overlay ) {
+
+    // the overlay process can move the directions on the fixed sites to work out
+    // the best possible match of moving and fixed sites.  This is undesirable in a
+    // parallel run as it can mean that different results are returned for the same
+    // molecule depending on what other molecules that process has seen already. So
+    // put them back at the end
+    vector<GtplDefs::DIRS_TYPE> fixed_dir_types;
+    vector<double> fixed_dirs( 9 * fixed_sites.size() , 0.0 );
+    int dir_num = 0;
+    for( int i = 0 , is = fixed_sites.size() ; i < is ; ++i ) {
+      for( int j = 0 , js = fixed_sites[i]->get_num_dirs() ; j < js ; ++j , ++dir_num ) {
+        fixed_dir_types.push_back( fixed_sites[i]->direction_type( j ) );
+        fixed_dirs[3 * dir_num] = fixed_sites[i]->direction( j )[0];
+        fixed_dirs[3 * dir_num + 1] = fixed_sites[i]->direction( j )[1];
+        fixed_dirs[3 * dir_num + 2] = fixed_sites[i]->direction( j )[2];
+      }
+    }
+
     // overlay sites using ov_trans_ to make new set - moving_sites is not moved
     overlay_sites( fixed_sites , moving_sites , use_h_vectors_in_overlay ,
                    use_lps_in_overlay );
@@ -486,6 +557,14 @@ void OverlayScore::overlay_mol_and_sites( const vector<BasePPhoreSite *> &fixed_
       rms_ = calculate_site_rms( fixed_sites , ov_sites_ , clique );
     }
 
+    // return directions to start values
+    dir_num = 0;
+    for( int i = 0 , is = fixed_sites.size() ; i < is ; ++i ) {
+      for( int j = 0 , js = fixed_sites[i]->get_num_dirs() ; j < js ; ++j , ++dir_num ) {
+        fixed_sites[i]->set_direction( &fixed_dirs[3 * dir_num] , fixed_dir_types[dir_num] , j );
+      }
+    }
+
   } else {
     ov_conf_ = shared_ptr<OEMolBase>( get_given_oeconf( moving_mol ,
                                                         get_moving_conf() , false ) );
@@ -497,9 +576,12 @@ void OverlayScore::overlay_mol_and_sites( const vector<BasePPhoreSite *> &fixed_
 }
 
 // **************************************************************************
-// take SinglePPhoreSites and overlays them using the
+// free function that takes SinglePPhoreSites and overlays them using the
 // OverlayTrans in the OverlayScore, returning copies of the sites, transformed
 // to the overlay.
+// Note that twiddle and flip can also change the direction vectors on the
+// fixed sites, as they work out the best possible alignment of directions
+// in the 2 overlays.
 void OverlayScore::overlay_sites( const vector<BasePPhoreSite *> &fixed_sites ,
                                   const vector<SinglePPhoreSite *> &moving_sites ,
                                   bool use_h_vectors , bool use_lp_vectors ) {
@@ -519,18 +601,16 @@ void OverlayScore::overlay_sites( const vector<BasePPhoreSite *> &fixed_sites ,
       ov_sites_[sits[i+1]]->twiddle( *fixed_sites[sits[i]] ,
           GtplDefs::H_VECTOR );
     }
-#ifdef NOTYET
     if( use_lp_vectors && ov_sites_[sits[i+1]]->get_flippable() ) {
       ov_sites_[sits[i+1]]->flip( *fixed_sites[sits[i]] ,
           GtplDefs::LP_VECTOR );
     }
-#endif
   }
 
 }
 
 // **************************************************************************
-// function that takes a multi-molecule query and overlays it using the
+// free function that takes a multi-molecule query overlays it using the
 // OverlayTrans in the OverlayScore, returning a new copy of target conf
 // to the overlay.
 void OverlayScore::overlay_moving_conf( OEMol &target_mol ,
@@ -630,14 +710,16 @@ void OverlayScore::calc_clip_score( vector<BasePPhoreSite *> &query_sites ,
 // ******************************************************************************
 // calculate the hphobe, donor and acceptor scores. The target volume grid is
 // needed for calculating the occlusion of virtual donor and acceptor sites.
-void OverlayScore::calc_robins_scores( const vector<vector<SinglePPhoreSite *> > &fixed_score_sites ,
+void OverlayScore::calc_robins_scores( const vector<SinglePPhoreSite *> &fixed_score_sites ,
                                        const vector<SinglePPhoreSite *> &moving_sites ,
                                        shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ) {
 
   if( !fixed_solid_grid ) {
     return; // can't do Robin's scores as we need a volume for the occlusion part
   }
-  vector<vector<SinglePPhoreSite *> > sites = fixed_score_sites;
+
+  vector<vector<SinglePPhoreSite *> > sites;
+  sites.push_back( fixed_score_sites );
   sites.push_back( vector<SinglePPhoreSite *>() );
   transform( ov_sites_.begin() , ov_sites_.end() ,
              inserter( sites.back() , sites.back().begin() ) ,
@@ -652,6 +734,99 @@ void OverlayScore::calc_robins_scores( const vector<vector<SinglePPhoreSite *> >
 #ifdef NOTYET
   cout << "Volume score = " << vol_score_ << endl;
 #endif
+
+}
+
+// ******************************************************************************
+// use the reference overlay to make a single number for Robin's Pareto ranking
+float OverlayScore::calc_robins_pareto_score( const OverlayScore &os ) const {
+
+  float ret_score = 0.0F;
+  if( get_reference_overlay()->hphobe_score() != 0.0F ) {
+#ifdef NOTYET
+    cout << os.hphobe_score() << " / " << get_reference_overlay()->hphobe_score()
+         << " = " << os.hphobe_score() / get_reference_overlay()->hphobe_score() << endl;
+#endif
+    ret_score += os.hphobe_score() / get_reference_overlay()->hphobe_score();
+  }
+  if( get_reference_overlay()->hbond_score() != 0.0F ) {
+#ifdef NOTYET
+    cout << os.hbond_score() << " / " << get_reference_overlay()->hbond_score()
+         << " = " << os.hbond_score() / get_reference_overlay()->hbond_score() << endl;
+#endif
+    ret_score += os.hbond_score() / get_reference_overlay()->hbond_score();
+  }
+  // lower is better for volume score
+  if( os.vol_score() != 0.0F ) {
+#ifdef NOTYET
+    cout << os.vol_score() << " / " << get_reference_overlay()->vol_score()
+         << " = " <<  1.0F - os.vol_score() / get_reference_overlay()->vol_score() << endl;
+    ret_score += 1.0F - os.vol_score() / get_reference_overlay()->vol_score();
+    cout << "shape_tani = " << os.grid_shape_tanimoto() << endl;
+#endif
+    ret_score += os.grid_shape_tanimoto();
+  }
+
+  return ret_score;
+
+}
+
+// ******************************************************************************
+// use the reference overlay to make a single number for Overall Pareto ranking
+float OverlayScore::calc_overall_pareto_score( const OverlayScore &os ) const {
+
+  float ret_score = 0.0F;
+
+  // higher is better for num_sites()
+  ret_score += float( os.num_sites() ) / float( get_reference_overlay()->num_sites() );
+  // lower rms is better, the reference rms should be 0, so take 1.0 - rms().
+  // It's possible that the rms() might be higher than 1.0, but it'll be in that
+  // sort of ballpark, and a -ve overall score isn't a disaster.
+  ret_score += 1.0 - os.rms();
+
+  ret_score += calc_robins_pareto_score( os );
+
+  // higher is better for included vol
+  if( get_reference_overlay()->included_vol() != 0.0F && os.included_vol() != 0.0f ) {
+    ret_score += os.included_vol() / get_reference_overlay()->included_vol();
+  }
+
+  // this is the same as vol_score so only count once. Lower is better.
+  if( os.total_vol() != 0.0F && total_vol() != 0.0F  &&
+      get_reference_overlay()->total_vol() && vol_score() < -0.5F ) {
+    ret_score += 1.0F - os.total_vol() / get_reference_overlay()->total_vol();
+  }
+
+  // shape tanimotos are already normalised to 1.0, so just add
+  if( os.grid_shape_tanimoto() > -numeric_limits<float>::max() ) {
+    ret_score += os.grid_shape_tanimoto();
+  }
+  if( os.gauss_shape_tanimoto() > -numeric_limits<float>::max() ) {
+    ret_score += os.gauss_shape_tanimoto();
+  }
+
+  // higher is better for surface volume
+  if( get_reference_overlay()->surface_volume() != 0.0F && os.surface_volume() != 0.0F ) {
+    ret_score += os.surface_volume() / get_reference_overlay()->surface_volume();
+  }
+
+  // the protein clash is in cubic angstrom which will swamp everything else.
+  // Also, lower is better.  So doing 1.0 - fraction of molecule that clashes.
+  if( get_reference_overlay()->protein_clash() > -numeric_limits<float>::max() ) {
+    ret_score += 1.0 - ( os.protein_clash() / os.vol_score() );
+  }
+
+  // mmff_nrg is pretty much impossible to normalise, so ignore it.
+  // clique tanimoto and clip score are also normalised to 1. They're set to
+  // -1.0F if they haven't been calculated.
+  if( os.clip_score() > -0.5F ) {
+    ret_score += os.clip_score();
+  }
+  if( os.clique_tanimoto() > -0.5F ) {
+    ret_score += os.clique_tanimoto();
+  }
+
+  return ret_score;
 
 }
 
@@ -705,7 +880,7 @@ void OverlayScore::calc_hbond_score( const vector<vector<SinglePPhoreSite *> > &
 }
 
 //*****************************************************************************
-// cluster sites of given type not caring about their possession of a
+// cluster sites of given type not caring about whether their possession of a
 // direction. Only 1 site in each cluster from each molecule
 void OverlayScore::cluster_sites( const string &site_type , float thresh ,
                                   const vector<vector<SinglePPhoreSite *> > &sites ,
@@ -734,6 +909,8 @@ void OverlayScore::cluster_sites( const string &site_type , float thresh ,
 void OverlayScore::make_site_nnls( const string &site_type , float thresh ,
                                    const vector<vector<SinglePPhoreSite *> > &sites ,
                                    vector<SiteCluster> &nnls ) {
+
+  // cout << "make_site_nnls : " << site_type << endl;
 
   float thresh_sq = thresh * thresh;
 
@@ -1027,6 +1204,10 @@ float OverlayScore::calc_occlusion( const SiteCluster &atom_sites ,
     float this_occ = 1.0F;
     double virt_centroid[3];
     calc_cluster_centroid( virt_sites[i] , virt_centroid );
+#ifdef NOTYET
+    cout << "Virt sites centroid : " << virt_centroid[0] << " , "
+         << virt_centroid[1] << " , " << virt_centroid[2] << endl;
+#endif
     double vec[3];
     DACLIB::join_vector( atom_centroid , virt_centroid , vec );
     for( int j = 0 ; j < 4 ; ++j ) {
@@ -1035,6 +1216,9 @@ float OverlayScore::calc_occlusion( const SiteCluster &atom_sites ,
       pos[1] = atom_centroid[1] + vec[1] * ( 2.1 + float( j ) * 0.3 );
       pos[2] = atom_centroid[2] + vec[2] * ( 2.1 + float( j ) * 0.3 );
       if( fixed_solid_grid->point_in_volume( pos ) ) {
+#ifdef NOTYET
+        cout << "pos : " << pos[0] << " , " << pos[1] << " , " << pos[2] << " inside" << endl;
+#endif
         this_occ -= occ_incr;
       }
     }
@@ -1180,9 +1364,8 @@ void OverlayScore::extract_virtual_sites( const vector<ClusterMember> &sites ,
       vsite_cds[1] = sites[i].second->coords()[1] + virt_site_cds[3*j+1];
       vsite_cds[2] = sites[i].second->coords()[2] + virt_site_cds[3*j+2];
       SinglePPhoreSite *vsite = new SinglePPhoreSite( vsite_cds ,
-						      ddir , sites[i].second->get_type_code() ,
-						      sites[i].second->get_type_string() ,
-						      "Virtual" , false , "No Molecule" );
+          ddir , sites[i].second->get_type_code() , sites[i].second->get_type_string() ,
+          "Virtual" , false , "No Molecule" );
       virt_sites.back().push_back( vsite );
     }
   }
@@ -1240,12 +1423,20 @@ float OverlayScore::mean_normal_cosine( const vector<ClusterMember> &sites ) {
   float num_sites_in_mean = 0.0F;
 
   for( int i = 0 , is = sites.size() - 1 ; i < is ; ++i ) {
+#ifdef NOTYET
+    cout << "site i = " << i << " num_dirs = " << sites[i].second->get_num_dirs() << endl;
+    sites[i].second->brief_report( cout );
+#endif
     if( !sites[i].second->get_num_dirs() ) {
       continue;
     }
     const double *d1 = sites[i].second->direction( 0 );
     double ld1 = DACLIB::length( d1 );
     for( int j = i + 1 , js = sites.size() ; j < js ; ++j ) {
+#ifdef NOTYET
+      cout << "site j = " << j << " num_dirs = " << sites[j].second->get_num_dirs() << endl;
+      sites[j].second->brief_report( cout );
+#endif
       if( !sites[j].second->get_num_dirs() ) {
         continue;
       }
@@ -1418,6 +1609,16 @@ bool OverlayScore::operator>( const OverlayScore &rhs ) const {
 }
 
 // ******************************************************************************
+bool OverlayScore::operator==( const OverlayScore &rhs ) const {
+
+  ostringstream oss1 , oss2;
+  oss1 << *this;
+  oss2 << rhs;
+  return( oss1.str() == oss2.str() );
+
+}
+
+// ******************************************************************************
 bool OverlayScore::grid_shape_tani_less( const OverlayScore &rhs ) const {
 
   if( fabs( grid_shape_tanimoto() - rhs.grid_shape_tanimoto() ) < GtplDefs::FLT_TOL ) {
@@ -1493,47 +1694,23 @@ bool OverlayScore::mmff_nrg_less(const OverlayScore &rhs) const {
 // ******************************************************************************
 bool OverlayScore::robins_pareto_less( const OverlayScore &rhs ) const {
 
-  int lhs_dominates = 0 , rhs_dominates = 0;
-  float fraction_diff = 0.0F;
+  float lhs_score = calc_robins_pareto_score( *this );
+  float rhs_score = calc_robins_pareto_score( rhs );
 
-  if( fabs( rhs.hbond_score() - hbond_score() ) >= GtplDefs::FLT_TOL ) {
-    if( rhs.hbond_score() > hbond_score() ) {
-      ++rhs_dominates;
-    } else {
-      ++lhs_dominates;
-    }
-    fraction_diff = 0.5F * ( rhs.hbond_score() - hbond_score() ) / ( rhs.hbond_score() + hbond_score() );
-  }
+#ifdef NOTYET
+  cout << ref_ov_->hphobe_score() << " : " << ref_ov_->hbond_score() << " : "
+       << ref_ov_->vol_score() << endl;
+  cout << rhs.hphobe_score() << " : " << rhs.hbond_score() << " : "
+       << rhs.vol_score() << endl;
+  cout << hphobe_score() << " : " << hbond_score() << " : "
+       << vol_score() << endl;
+  cout << "left score : " << lhs_score << " right score : " << rhs_score << endl;
+#endif
 
-  if( fabs( rhs.hphobe_score() - hphobe_score() ) >= GtplDefs::FLT_TOL ) {
-    if( rhs.hphobe_score() > hphobe_score() ) {
-      ++rhs_dominates;
-    } else {
-      ++lhs_dominates;
-    }
-    fraction_diff += 0.5F * ( rhs.hphobe_score() - hphobe_score() ) / ( rhs.hphobe_score() + hphobe_score() );
-  }
-
-  if( fabs( rhs.vol_score() - vol_score() ) >= GtplDefs::FLT_TOL ) {
-    if( rhs.vol_score() < vol_score() ) {
-      ++rhs_dominates;
-    } else {
-      ++lhs_dominates;
-    }
-    // lower is better for this one
-    fraction_diff += 0.5 * ( vol_score() - rhs.vol_score() ) / ( rhs.vol_score() + vol_score() );
-  }
-
-  // test is this < rhs, so if rhs dominates, return true
-  if( rhs_dominates == lhs_dominates ) {
-    if( fabs( fraction_diff ) < GtplDefs::FLT_TOL ) {
-      // they really aren't differentiable
-      return( get_moving_mol_name() < rhs.get_moving_mol_name() );
-    } else {
-      return fraction_diff > 0.0F;
-    }
+  if( fabs( lhs_score - rhs_score ) < GtplDefs::FLT_TOL ) {
+    return get_moving_mol_name() < rhs.get_moving_mol_name();
   } else {
-    return rhs_dominates > lhs_dominates;
+    return( lhs_score < rhs_score );
   }
 
 }
@@ -1541,161 +1718,33 @@ bool OverlayScore::robins_pareto_less( const OverlayScore &rhs ) const {
 // ******************************************************************************
 bool OverlayScore::overall_pareto_less( const OverlayScore &rhs ) const {
 
-  int lhs_dominates = 0 , rhs_dominates = 0;
-  float fraction_diff = 0.0F;
+#ifdef NOTYET
+  cout << "overall_pareto_less for " << get_moving_mol_name() << " vs " << get_moving_mol_name() << endl;
+  cout << num_sites() << " vs " << rhs.num_sites() << " and " << rms() << " vs " << rhs.rms() << endl;
+  cout << hbond_score() << " vs " << rhs.hbond_score() << endl
+       << hphobe_score() << " vs " << rhs.hphobe_score() << endl
+       << vol_score() << " vs " << rhs.vol_score() << endl
+       << included_vol() << " vs " << rhs.included_vol() << endl
+       << total_vol() << " vs " << rhs.total_vol() << endl
+       << grid_shape_tanimoto() << " vs " << rhs.grid_shape_tanimoto() << endl
+       << surface_volume() << " vs " << rhs.surface_volume() << endl
+       << protein_clash() << " vs " << rhs.protein_clash() << endl
+       << get_mmff_nrg() << " vs " << rhs.get_mmff_nrg() << endl
+       << clip_score() << " vs " << rhs.clip_score() << endl
+       << clique_tanimoto() << " vs " << rhs.clique_tanimoto() << endl;
+#endif
 
-  if( rhs.num_sites() != num_sites() ) {
-    if( rhs.num_sites() > num_sites() ) {
-      ++rhs_dominates;
-    } else {
-      ++lhs_dominates;
-    }
-    fraction_diff = 0.5F * ( float( rhs.num_sites() - num_sites() ) / float( rhs.num_sites() + num_sites() ) );
-  }
+  float lhs_score = calc_overall_pareto_score( *this );
+  float rhs_score = calc_overall_pareto_score( rhs );
 
-  if( fabs( rhs.rms() - rms() ) >= GtplDefs::FLT_TOL ) {
-    if( rhs.rms() < rms() ) {
-      ++rhs_dominates;
-    } else {
-      ++lhs_dominates;
-    }
-    fraction_diff += 0.5F * ( rhs.rms() - rms() ) / ( rhs.rms() + rms() );
-  }
+#ifdef NOTYET
+  cout << "lhs_score : " << lhs_score << " and rhs_score : " << rhs_score << endl;
+#endif
 
-  if( rhs.hbond_score() > -0.5F && hbond_score() > -0.5F ) {
-    // if these aren't calculated, they'll by -1.0F
-    if( fabs( rhs.hbond_score() - hbond_score() ) >= GtplDefs::FLT_TOL ) {
-      if( rhs.hbond_score() > hbond_score() ) {
-        ++rhs_dominates;
-      } else {
-        ++lhs_dominates;
-      }
-      fraction_diff = 0.5F * ( rhs.hbond_score() - hbond_score() ) / ( rhs.hbond_score() + hbond_score() );
-    }
-
-    if( fabs( rhs.hphobe_score() - hphobe_score() ) >= GtplDefs::FLT_TOL ) {
-      if( rhs.hphobe_score() > hphobe_score() ) {
-        ++rhs_dominates;
-      } else {
-        ++lhs_dominates;
-      }
-      fraction_diff += 0.5F * ( rhs.hphobe_score() - hphobe_score() ) / ( rhs.hphobe_score() + hphobe_score() );
-    }
-
-    if( fabs( rhs.vol_score() - vol_score() ) >= GtplDefs::FLT_TOL ) {
-      if( rhs.vol_score() < vol_score() ) {
-        ++rhs_dominates;
-      } else {
-        ++lhs_dominates;
-      }
-      // lower is better for this one
-      fraction_diff += 0.5 * ( vol_score() - rhs.vol_score() ) / ( rhs.vol_score() + vol_score() );
-    }
-  }
-
-  if( rhs.included_vol() != 0.0F && included_vol() != 0.0F ) {
-    if( fabs( rhs.included_vol() - included_vol() ) < GtplDefs::FLT_TOL ) {
-      ++lhs_dominates;
-    } else if( rhs.included_vol() > included_vol() ) {
-      ++rhs_dominates;
-    } else {
-      ++lhs_dominates;
-    }
-  }
-
-  // this is the same as vol_score so only count once
-  if( rhs.total_vol() != 0.0F && total_vol() != 0.0F  && vol_score() < -0.5F ) {
-    if( fabs( rhs.total_vol() - total_vol() ) >= GtplDefs::FLT_TOL ) {
-      if( rhs.total_vol() < total_vol() ) {
-        ++rhs_dominates;
-      } else {
-        ++lhs_dominates;
-      }
-    }
-      fraction_diff += 0.5 * ( total_vol() - rhs.total_vol() ) / ( rhs.total_vol() + total_vol() );
-  }
-
-  if( rhs.grid_shape_tanimoto() > -numeric_limits<float>::max() &&
-      grid_shape_tanimoto() > -numeric_limits<float>::max() ) {
-    if( fabs( rhs.grid_shape_tanimoto() - grid_shape_tanimoto() ) >= GtplDefs::FLT_TOL ) {
-      if( rhs.grid_shape_tanimoto() > grid_shape_tanimoto() ) {
-        ++rhs_dominates;
-      } else {
-        ++lhs_dominates;
-      }
-    }
-    fraction_diff += 0.5F * ( rhs.grid_shape_tanimoto() - grid_shape_tanimoto() ) / ( rhs.grid_shape_tanimoto() + grid_shape_tanimoto() );
-  }
-
-  if( rhs.surface_volume() != 0.0F && surface_volume() != 0.0F ) {
-    if( fabs( rhs.surface_volume() - surface_volume() ) >= GtplDefs::FLT_TOL ) {
-      if( rhs.surface_volume() > surface_volume() ) {
-        ++rhs_dominates;
-      } else {
-        ++lhs_dominates;
-      }
-    }
-    fraction_diff += 0.5F * ( rhs.surface_volume() - surface_volume() ) / ( rhs.surface_volume() + surface_volume() );
-  }
-
-  if( rhs.protein_clash() > -numeric_limits<float>::max() &&
-      protein_clash() > -numeric_limits<float>::max() ) {
-    if( fabs( rhs.protein_clash() - protein_clash() ) >= GtplDefs::FLT_TOL ) {
-      if( rhs.protein_clash() < protein_clash() ) {
-        ++rhs_dominates;
-      } else {
-        ++lhs_dominates;
-      }
-    }
-    fraction_diff += 0.5 * ( protein_clash() - rhs.protein_clash() ) / ( rhs.protein_clash() + protein_clash() );
-  }
-
-  if( rhs.get_mmff_nrg() < numeric_limits<float>::max() &&
-      get_mmff_nrg() < numeric_limits<float>::max() ) {
-    if( fabs( rhs.get_mmff_nrg() - get_mmff_nrg() ) >= GtplDefs::FLT_TOL ) {
-      if( rhs.get_mmff_nrg() < get_mmff_nrg() ) {
-        ++rhs_dominates;
-      } else {
-        ++lhs_dominates;
-      }
-    }
-    fraction_diff += 0.5 * ( get_mmff_nrg() - rhs.get_mmff_nrg() ) / ( rhs.get_mmff_nrg() + get_mmff_nrg() );
-  }
-
-  if( rhs.clip_score() > -0.5F && clip_score() > -0.5F ) {
-    // if these aren't calculated, they'll by -1.0F
-    if( fabs( rhs.clip_score() - clip_score() ) >= GtplDefs::FLT_TOL ) {
-      if( rhs.clip_score() > clip_score() ) {
-        ++rhs_dominates;
-      } else {
-        ++lhs_dominates;
-      }
-    }
-    fraction_diff += 0.5F * ( rhs.clip_score() - clip_score() ) / ( rhs.clip_score() + clip_score() );
-  }
-
-  if( rhs.clique_tanimoto() > -0.5F && clique_tanimoto() > -0.5F ) {
-    // if these aren't calculated, they'll by -1.0F
-    if( fabs( rhs.clique_tanimoto() - clique_tanimoto() ) >= GtplDefs::FLT_TOL ) {
-      if( rhs.clique_tanimoto() > clique_tanimoto() ) {
-        ++rhs_dominates;
-      } else {
-        ++lhs_dominates;
-      }
-    }
-    fraction_diff += 0.5F * ( rhs.clique_tanimoto() - clique_tanimoto() ) / ( rhs.clique_tanimoto() + clique_tanimoto() );
-  }
-
-  // test is this < rhs, so if rhs dominates, return true
-  if( rhs_dominates == lhs_dominates ) {
-    if( fabs( fraction_diff ) < GtplDefs::FLT_TOL ) {
-      // they really aren't differentiable
-      return( get_moving_mol_name() < rhs.get_moving_mol_name() );
-    } else {
-      return fraction_diff > 0.0F;
-    }
+  if( fabs( lhs_score - rhs_score ) < GtplDefs::FLT_TOL ) {
+    return get_moving_mol_name() < rhs.get_moving_mol_name();
   } else {
-    return rhs_dominates > lhs_dominates;
+    return( lhs_score < rhs_score );
   }
 
 }
@@ -1712,10 +1761,8 @@ ostream &operator<<( ostream &s , const OverlayScore &os ) {
   s << " :: " << os.rms_
     << " " << os.num_sites_ << " " << os.included_vol_ << " " << os.total_vol_
     << " " << os.grid_shape_tanimoto_
-    << " " << os.gauss_shape_tanimoto_ << " " << os.surface_vol_;
-  if( os.protein_clash_ > -numeric_limits<float>::max() ) {
-    s << " " << os.protein_clash_;
-  }
+    << " " << os.gauss_shape_tanimoto_ << " " << os.surface_vol_
+    << " " << os.protein_clash_;
 
   return s;
 
@@ -1742,4 +1789,17 @@ bool overlay_score_names_and_sites_match( const OverlayScore *a ,
 
   return true;
   
+}
+
+// ********************************************************************
+string remove_conf_num_from_mol_name( const string &mol_name ) {
+
+  string ret( mol_name );
+  size_t us_pos = ret.rfind( "_" );
+  if( string::npos == us_pos ) {
+    return ret;
+  } else {
+    return ret.substr( 0 , us_pos );
+  }
+
 }

@@ -155,8 +155,7 @@ float calc_overlay_trans( const vector<BasePPhoreSite *> &sites1 ,
                           bool use_h_vec_dirs , bool use_lp_dirs ) {
 
   vector<BasePPhoreSite *> base_sites2( sites2.begin() , sites2.end() );
-  vector<float> weights( pairs.size() / 2 , 1.0F );
-  return calc_overlay_trans( sites1 , base_sites2 , pairs , weights ,
+  return calc_overlay_trans( sites1 , base_sites2 , pairs ,
                              overlay_trans , use_ring_norm_dirs ,
                              use_h_vec_dirs , use_lp_dirs );
 
