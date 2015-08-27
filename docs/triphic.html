@@ -10,7 +10,7 @@
 Triphic does pharmacophore-based 3D similarity searching of a file of
 molecules. Most commonly, this will involve a single conformation of a
 molecule querying an OEBin file. It can run in serial or parallel
-using PVM.  It is similar in concept (though developed independently
+using OpenMPI.  It is similar in concept (though developed independently
 of) the CLIP program of Rhodes et al. (JCICS, 43, 443-448 (2003)).
 
 The triphic search is done by identifying, using SMARTS and points
@@ -48,6 +48,9 @@ types that must be matched in the query etc.
       </pre>
     for as many files as you like, or you can use the
     --db-files-file option.
+    If you give triphic a file of 2D structures to search, you can
+    now use Omega to create conformations on the fly. If you don't do
+    this, you might be disappointed in the number of hits you get. 
 </li>
 <li>
     -Q &lt;string&gt; or --query-file &lt;string&gt; Specifies the query file to
@@ -148,12 +151,9 @@ file is low.
 	there is no protein, you'll get undefined behaviour. ROBINS_PARETO
 	is very close to the scoring method from Robin Taylor, as used in
 	CCDC's pharmacophore overlay program (JCAMD, 26, 451-472) and is the
-	Pareto score from included volume, h-bond and hydrophobe scores. In
-	the event of a Pareto tie (when sorting, neither of the two overlays
-	being compared dominates) a mysterious percentage difference in the
-	relevant scores is used as a tie-breaker. OVERALL_PARETO uses all
-	the scores in the current search to come up with a best consensus
-	order. 
+	combination score from shape tanimoto, h-bond and hydrophobe
+	scores.  OVERALL_PARETO uses all the scores in the current
+	search to come up with a best consensus order. 
     </li>
     <li>
       --ring-normal-vector &lt;IGNORE|SCREEN|ALIGN&gt; How to treat ring normal
@@ -192,6 +192,28 @@ file is low.
     <li>
       --h-bond-acceptor-tolerance &lt;float&gt; Likewise. 
     </li>
+<li>
+      --use-omega Use the Omega toolkit to do conformation expansion of
+    the input structures on the fly. Really only makes sense if the
+    input file is a set of 2D structures, but it will use Omega
+    regardless.
+</li>
+    <li>
+      --use-flipper By default, Omega rejects input structures with
+      unspecified stereochemistry at stereocentres it recognises. The
+      flipper protocol gets round this by generating all possibilities
+      before sending them to Omega. Of course, this might mean that
+      you search and hence get hits for a stereoisomer that isn't the
+      one in the bottle. Whether you use flipper or not is a matter of
+      debate, but you do at least have the choice!
+    </li>
+<li>
+  --no-warts By default, when the Omega conformations are enumerated
+  the conformation number is appended to the molecule name, such that
+  Mol1 conformation 111 becomes Mol1_111. The standalone Omega program
+  calls these decorations 'warts' and hence so does triphic. This
+  option turns them off.
+</li>
     <li>
       --optimise-ligand-rigid Specifies that a rigid-body optimisation of
       each hit within the protein should be performed. There's no subtlety
@@ -384,23 +406,42 @@ file is low.
       it. So this option turns off that behaviour. 
     </li>
     <li>
-      --slave-name &lt;string&gt; Specifies the name of the executable to be used
-	as a slave when running under PVM in parallel. 
-    </li>
-    <li>
-      --num-slave-procs &lt;int&gt; Specifies the number of slave processes to be
-	used when running under PVM in parallel.
+      --restart Specifies that the job is a restart of a
+      partially-completed run. Give exactly the same command as you
+      did for the first run, adding --restart and if the output file
+      is called dead_output_file.sdf, it expects to find a file
+      dead_output_file.RESTART. This file contains all information
+      needed to restart the job from the last checkpoint.
     </li>
 <li>
-  --pvm-hosts-file <string> Gives the name of a hosts file, with
-    numbers of processes to run on each named hosts. Expects the file
-    to have multiple lines, each line containing the name of a host
-    and the number of slaves to run on it. It's the best was of
-    running on the AP cluster, as the job starter makes the file for
-    you. You just need to give it the slave name with --slave-name and
-    away you go. 
+  --restart-number &lt;int&gt; This option behaves exactly the same as
+  --restart but allows you to over-ride the point in the database file
+  it starts from, using the integer argument, which is the number of
+  molecules to skip before starting searching again. 
 </li>
 </ul>
+
+<h3>Some Notes</h3>
+It turns out that Pareto ranking is inappropriate for sorting lists of
+items and particularly for inserting a new item into a sorted list. It
+is quite possible to get a situation where A > B > C > A if there
+isn't strict dominance between them. This makes the final answer
+dependent on the input order of the hits, which in a parallel run
+makes it all pretty random. After a bit of experimentation, for the
+ROBINS_PARETO and OVERALL_PARETO primary scores, I've come up with a
+score that attempts to put each of the different constituent scores on
+a scale of 0.0-1.0, and then sums them. For ROBINS_PARETO, this is
+done by comparing scores for a hit back to the best possible score,
+which is assumed to be the query scored against itself. To this end,
+the score for a hit would be ((HPhobe_Hit/HPhobe_Query) +
+(HBond_Hit/HBond_Query) + (Grid Shape Tanimoto)). Similar things are
+done for OVERALL_PARETO, with a bit of bodging in places. For example,
+the protein clash term (which is measured in cubic angstrom) is
+converted to the fraction of the hit that sticks into the protein. In
+this case, it's not appropriate to compare to the query's protein
+clash since that should be zero if the crystallographer's been doing a
+proper job.
+
 
 <h3><a name="MOE_PH4_FILES">MOE Pharmacophore Files</a></h3>
 MOE is a molecular modelling program from the Chemical Computing Group

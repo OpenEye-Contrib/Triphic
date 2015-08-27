@@ -11,3 +11,9 @@ mpirun -np 4 ../exe_DEBUG/triphic \
     -O r.sdf \
     --protein 2Q61_prot.pdb
 
+mpirun -np 4 ../exe_DEBUG/triphic \
+    -Q 2Q61_lig_1.mol2 \
+    -D chembl_20_first_100_ions_and_tauts.smi \
+    -O r.sdf \
+    --protein 2Q61_prot.pdb \
+    --use-omega --use-flipper

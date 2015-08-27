@@ -9,7 +9,7 @@
 <p>
 Plurality is a 3D pharmacophore searching tool. It reads molecule
 files such as OEBin files written
-by OpenEye's omega program and runs in parallel using the PVM
+by OpenEye's omega program and runs in parallel using the OpenMPI
 parallelisation routines. It aims to perform relatively
 straightforward pharmacophore searches quickly - with a reasonable
 number of parallel processes (10-20 or so) it can search about 25
@@ -154,20 +154,6 @@ be contracted to their smallest unambiguous piece.
 <li>
     --i-already-know-about &lt;string&gt; Synonymous with
     ---dont-give-me-file
-</li>
-<li>
-    --slave-name &lt;string&gt; Specifies the name of the executable to be
-    used as a slave when running under PVM in parallel.
-</li>
-<li>
-    --num-slave-procs &lt;int&gt; Specifies the number of slave processes to
-    be used when running under PVM in parallel.
-</li>
-<li>
-    --pvm-hosts-file &lt;string&gt; Gives the name of a hosts file, with
-    numbers of processes to run on each named hosts. Expects the file
-    to have multiple lines, each line containing the name of a host
-    and the number of slaves to run on it.
 </li>
 </ul>
 
