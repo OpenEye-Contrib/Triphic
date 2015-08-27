@@ -1,6 +1,6 @@
 //
 // file PluralityHit.cc
-// Dave Cosgrove
+// David Cosgrove
 // AstraZeneca
 // 18th September 2007
 //
@@ -13,7 +13,7 @@
 #include <limits>
 
 #include <oechem.h>
-#include <pvm3.h>
+#include <mpi.h>
 
 #include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
@@ -25,21 +25,21 @@ using namespace OESystem;
 
 // in eponymous file
 OEMolBase *get_given_oeconf( OEMol &mol , int conf_num ,
-			     bool add_conf_num_to_name );
+                             bool add_conf_num_to_name );
 void overlay_oemolbase( OEMolBase &mol , const OverlayTrans &ot );
 // in eponymous file
 BasePPhoreSite *read_site_from_file( istream &is );
 
 namespace DACLIB {
-  // in grid_volumes.cc
-  VolumeGrid *prepare_mol_grid( OEMolBase *mol );
-  // in the eponymous fie
-  float atomic_num_to_rad( int atomic_num );
-  // in pack_oemols_into_pvm_buffer.cc
-  void pack_oemol_into_pvm_buffer( OEMolBase *mol );
-  void unpack_oemol_from_pvm_buffer( OEMolBase *mol );
-  void pack_string( const string &str );
-  void unpack_string( string &str );
+// in grid_volumes.cc
+VolumeGrid *prepare_mol_grid( OEMolBase *mol );
+// in the eponymous fie
+float atomic_num_to_rad( int atomic_num );
+// in send_oemols_via_mpi.cc
+void send_oemol_via_mpi( OEMolBase *mol , int dest_rank );
+void rec_oemol_via_mpi( int source_rank , OEMolBase *mol );
+void mpi_send_string( const string &str , int dest_rank );
+void mpi_rec_string( int source_rank , string &str );
 }
 
 // *************************************************************************
@@ -61,7 +61,7 @@ PluralityHit::PluralityHit( OEMol &target_mol , int conf_num ,
   for( int i = 0 , is = hit_sites.size() ; i < is ; ++i ) {
     ov_sites_.push_back( boost::shared_ptr<SinglePPhoreSite>( new SinglePPhoreSite( *target_sites[hit_sites[i]] ) ) );
     t_cds.insert( t_cds.end() , target_sites[hit_sites[i]]->coords() ,
-                  target_sites[hit_sites[i]]->coords() + 3 );
+        target_sites[hit_sites[i]]->coords() + 3 );
   }
 
 #ifdef NOTYET
@@ -101,7 +101,7 @@ PluralityHit::PluralityHit( OEMol &target_mol , int conf_num ,
 
   for( int i = 0 , is = score_vol_grids.size() ; i < is ; ++i ) {
     grid_vol_scores_.push_back( calc_overlap_vol( *(score_vol_grids[i].second) ,
-						  mol_vol_grid ) );
+                                                  mol_vol_grid ) );
   }
 
 }
@@ -133,7 +133,7 @@ void PluralityHit::write_to_stream( ostream &os , const string &sep ) {
     for( int j = 0 , js = ov_sites_[i]->num_site_atoms() ; j < js ; ++j ) {
       os << ov_sites_[i]->site_atoms()[j];
       if( j != js - 1 )
-	os << sep;
+        os << sep;
     }
     os << ")";
   }
@@ -146,8 +146,9 @@ void PluralityHit::write_to_stream( ostream &os , const string &sep ) {
 // *************************************************************************
 bool PluralityHit::has_same_sites( PluralityHit &ph ) const {
 
-  if( !ov_conf_ )
+  if( !ov_conf_ ) {
     return true;
+  }
 
   vector<char> site_atoms( ov_conf_->GetMaxAtomIdx() , 0 );
   for( int i = 0 , is = ov_sites_.size() ; i < is ; ++i ) {
@@ -160,19 +161,20 @@ bool PluralityHit::has_same_sites( PluralityHit &ph ) const {
     bool i_match_found = false;
     for( int j = 0 , js = ph.ov_sites_.size() ; j < js ; ++j ) {
       if( ov_sites_[i]->get_type_code() == ph.ov_sites_[j]->get_type_code() ) {
-	int that_site_atoms = 0;
-	for( int k = 0 , ks = ph.ov_sites_[j]->num_site_atoms() ; k < ks ; ++k ) {
-	  if( site_atoms[ph.ov_sites_[j]->site_atoms()[k]] )
-	    ++that_site_atoms;
-	}
-	if( this_site_atoms == that_site_atoms ) {
-	  i_match_found = true;
-	  break;
-	}
+        int that_site_atoms = 0;
+        for( int k = 0 , ks = ph.ov_sites_[j]->num_site_atoms() ; k < ks ; ++k ) {
+          if( site_atoms[ph.ov_sites_[j]->site_atoms()[k]] )
+            ++that_site_atoms;
+        }
+        if( this_site_atoms == that_site_atoms ) {
+          i_match_found = true;
+          break;
+        }
       }
     }
-    if( !i_match_found )
+    if( !i_match_found ) {
       return false;
+    }
   }
 
   return true;
@@ -188,108 +190,111 @@ void PluralityHit::add_scores_to_ov_conf( const vector<string> &grid_vol_files )
 
   OESetSDData( *ov_conf_ , "Grappel RMS" , lexical_cast<string>( ov_rms_ ) );
   OESetSDData( *ov_conf_ , "Grappel Excluded_Vol" ,
-	       lexical_cast<string>( prot_overlap_ ) );
+               lexical_cast<string>( prot_overlap_ ) );
   OESetSDData( *ov_conf_ , "Grappel Soft_Excluded_Vol" ,
-	       lexical_cast<string>( soft_exc_vol_ ) );
+               lexical_cast<string>( soft_exc_vol_ ) );
 
   for( int i = 0 , is = grid_vol_files.size() ; i < is ; ++i ) {
     boost::filesystem::path vp( grid_vol_files[i] );
     OESetSDData( *ov_conf_ , "Grappel " + vp.filename().string() ,
-		 lexical_cast<string>( grid_vol_scores_[i] ) );
+                 lexical_cast<string>( grid_vol_scores_[i] ) );
   }
 
 }
 
 // *************************************************************************
-void PluralityHit::pack_into_pvm_buffer() {
+void PluralityHit::send_via_mpi( int dest_rank ) {
 
-  int num_to_send = ov_conf_ && *ov_conf_ ? 1 : 0;
-  pvm_pkint( &num_to_send , 1 , 1 );
+  unsigned int num_to_send = ov_conf_ && *ov_conf_ ? 1 : 0;
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
   if( num_to_send ) {
-    DACLIB::pack_oemol_into_pvm_buffer( ov_conf_.get() );
+    DACLIB::send_oemol_via_mpi( ov_conf_.get() , dest_rank );
   }
 
   num_to_send = ov_sites_.size();
-  pvm_pkint( &num_to_send , 1 , 1 );
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
   ostringstream oss;
-  for( int i = 0 ; i < num_to_send ; ++i ) {
+  for( unsigned int i = 0 ; i < num_to_send ; ++i ) {
     ov_sites_[i]->write_to_stream( oss );
   }
-  DACLIB::pack_string( oss.str() );
+  DACLIB::mpi_send_string( oss.str() , dest_rank );
 
-  pvm_pkfloat( &ov_rms_ , 1 , 1 );
-  pvm_pkfloat( &prot_overlap_ , 1 , 1 );
-  pvm_pkfloat( &soft_exc_vol_ , 1 , 1 );
+  MPI_Send( &ov_rms_ , 1 , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
+  MPI_Send( &prot_overlap_ , 1 , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
+  MPI_Send( &soft_exc_vol_ , 1 , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
 
   num_to_send = hit_dists_.size();
-  pvm_pkint( &num_to_send , 1 , 1 );
-  if( num_to_send )
-    pvm_pkfloat( &hit_dists_[0] , num_to_send , 1 );
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
+  if( num_to_send ) {
+    MPI_Send( &hit_dists_[0] , num_to_send , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
+  }
 
   num_to_send = hit_angles_.size();
-  pvm_pkint( &num_to_send , 1 , 1 );
-  if( num_to_send )
-    pvm_pkfloat( &hit_angles_[0] , num_to_send , 1 );
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
+  if( num_to_send ) {
+    MPI_Send( &hit_angles_[0] , num_to_send , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
+  }
 
   num_to_send = hit_torsions_.size();
-  pvm_pkint( &num_to_send , 1 , 1 );
-  if( num_to_send )
-    pvm_pkfloat( &hit_torsions_[0] , num_to_send , 1 );
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
+  if( num_to_send ) {
+    MPI_Send( &hit_torsions_[0] , num_to_send , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
+  }
 
   num_to_send = grid_vol_scores_.size();
-  pvm_pkint( &num_to_send , 1 , 1 );
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
   if( num_to_send ) {
-    pvm_pkfloat( &grid_vol_scores_[0] , num_to_send , 1 );
+    MPI_Send( &grid_vol_scores_[0] , num_to_send , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
   }
 
 }
 
 // *************************************************************************
-void PluralityHit::unpack_from_pvm_buffer() {
+void PluralityHit::receive_via_mpi( int source_rank ) {
 
-  int num_to_rec;
-  pvm_upkint( &num_to_rec , 1 , 1 );
+  unsigned int num_to_rec;
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   if( num_to_rec ) {
     ov_conf_ = boost::shared_ptr<OEMolBase>( OENewMolBase( OEMolBaseType::OEDefault ) );
-    DACLIB::unpack_oemol_from_pvm_buffer( ov_conf_.get() );
+    DACLIB::rec_oemol_via_mpi( source_rank , ov_conf_.get() );
   }
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   string str;
-  DACLIB::unpack_string( str );
+  DACLIB::mpi_rec_string( source_rank , str );
   istringstream iss( str );
-  for( int i = 0 ; i < num_to_rec ; ++i ) {
+  for( unsigned int i = 0 ; i < num_to_rec ; ++i ) {
     // read_site_from_file returns a BasePPhoreSite *, but we know that it's
     // a SinglePPhoreSite that has been packed in.
     ov_sites_.push_back( boost::shared_ptr<SinglePPhoreSite>( reinterpret_cast<SinglePPhoreSite *>( read_site_from_file( iss ) ) ) );
   }
 
-  pvm_upkfloat( &ov_rms_ , 1 , 1 );
-  pvm_upkfloat( &prot_overlap_ , 1 , 1 );
-  pvm_upkfloat( &soft_exc_vol_ , 1 , 1 );
+  MPI_Recv( &ov_rms_ , 1 , MPI_FLOAT , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+  MPI_Recv( &prot_overlap_ , 1 , MPI_FLOAT , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+  MPI_Recv( &soft_exc_vol_ , 1 , MPI_FLOAT , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   if( num_to_rec ) {
     hit_dists_ = vector<float>( num_to_rec , -1.0F );
-    pvm_upkfloat( &hit_dists_[0] , num_to_rec , 1 );
+    MPI_Recv( &hit_dists_[0] , num_to_rec , MPI_FLOAT , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   }
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   if( num_to_rec ) {
     hit_angles_ = vector<float>( num_to_rec , -1.0F );
-    pvm_upkfloat( &hit_angles_[0] , num_to_rec , 1 );
+    MPI_Recv( &hit_angles_[0] , num_to_rec , MPI_FLOAT , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   }
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   if( num_to_rec ) {
     hit_torsions_ = vector<float>( num_to_rec , -1.0F );
-    pvm_upkfloat( &hit_torsions_[0] , num_to_rec , 1 );
+    MPI_Recv( &hit_torsions_[0] , num_to_rec , MPI_FLOAT , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   }
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   if( num_to_rec ) {
     grid_vol_scores_ = vector<float>( num_to_rec , -1.0F );
-    pvm_upkfloat( &grid_vol_scores_[0] , num_to_rec , 1 );
+    MPI_Recv( &grid_vol_scores_[0] , num_to_rec , MPI_FLOAT , source_rank , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   }
 
 }
@@ -358,7 +363,7 @@ void PluralityHit::fill_distances( vector<BTD> &query_dists ) {
 // mol_grid if it doesn't already exist. Returns 0.0 if it can't
 // do any better.
 float PluralityHit::calc_overlap_vol( DACLIB::VolumeGrid &vol_grid ,
-				      boost::shared_ptr<DACLIB::VolumeGrid> &mol_grid ) {
+                                      boost::shared_ptr<DACLIB::VolumeGrid> &mol_grid ) {
 
   if( !ov_conf_ )
     return 0.0F;
@@ -393,8 +398,8 @@ bool PluralityHit::test_hard_exc_vols( vector<BTV> &hard_exc_vols ) {
     ov_conf_->GetCoords( atom , at_cds );
     for( int i = 0 , is = sphere_rads.size() ; i < is ; ++i ) {
       if( DACLIB::sq_distance( &sphere_cds[3 * i] , at_cds ) <
-	  DACLIB::square( sphere_rads[i] + at_rad ) ) {
-	return false;
+          DACLIB::square( sphere_rads[i] + at_rad ) ) {
+        return false;
       }
     }
   }

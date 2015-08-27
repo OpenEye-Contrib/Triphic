@@ -1,6 +1,6 @@
 //
 // file PluralitySettings.H
-// Dave Cosgrove
+// David Cosgrove
 // 13th September 2007
 //
 // This is a public class that holds all the settings that the user used to
@@ -31,8 +31,8 @@ public :
   bool operator!() const;
   void print_usage( std::ostream &os ) const;
 
-  void pack_contents_into_pvm_buffer();
-  void unpack_contents_from_pvm_buffer();
+  void send_contents_via_mpi( int dest_slave );
+  void receive_contents_via_mpi(); // assumes it's from process rank 0
 
   std::string pphore_file() const { return pphore_file_; }
   std::vector<std::string> db_files() const { return db_files_; }

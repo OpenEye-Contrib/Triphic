@@ -187,6 +187,7 @@ set(PLURALITY_DACLIB_SRCS DiamondOverlay.cc
   eigen_solve_4b4f.cc
   mpi_string_subs.cc
   send_environment_var_to_mpi_slave.cc
+  send_oemols_via_mpi.cc
   split_filename.cc
   read_smarts_file.cc
   rotate_about_axis.cc

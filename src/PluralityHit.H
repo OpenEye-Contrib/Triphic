@@ -1,6 +1,6 @@
 //
 // file PluralityHit.H
-// Dave Cosgrove
+// David Cosgrove
 // AstraZeneca
 // 18th September 2007
 //
@@ -54,8 +54,8 @@ public :
   // add scores to the ov_conf_ as SDF tagged data
   void add_scores_to_ov_conf( const std::vector<std::string> &grid_vol_files );
 
-  void pack_into_pvm_buffer();
-  void unpack_from_pvm_buffer();
+  void send_via_mpi( int dest_rank );
+  void receive_via_mpi( int source_rank );
 
 private :
 

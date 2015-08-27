@@ -1,6 +1,6 @@
 //
 // file plurality_subs.cc
-// Dave Cosgrove
+// David Cosgrove
 // 31st July 2007
 //
 // Some of the plurality-specific functions for new plurality.
@@ -15,27 +15,22 @@
 #include <oechem.h>
 #include <oeszybki.h>
 
-#include <pvm3.h>
+#include <mpi.h>
 
 #include <boost/bind.hpp>
-#include <boost/cast.hpp>
+//#include <boost/cast.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
-#include <boost/lambda/lambda.hpp>
-#include <boost/lambda/construct.hpp>
-#include <boost/lambda/bind.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/shared_ptr.hpp>
 
 #include "BasePPhoreSite.H"
 #include "FileExceptions.H"
-#include "PharmPointPVM.H"
+#include "PharmPoint.H"
 #include "PluralityHit.H"
 #include "PluralitySettings.H"
 #include "PPhoreQuery.H"
 #include "SinglePPhoreSite.H"
 #include "SMARTSExceptions.H"
-#include "VolumeGridPVM.H"
 
 using namespace std;
 using namespace OEChem;
@@ -49,19 +44,13 @@ void make_pphore_sites( OEMol &mol , PharmPoint &pharm_points ,
                         vector<pair<string,string> > &smarts_sub_defn ,
                         vector<vector<SinglePPhoreSite *> > &pharm_sites );
 VolumeGrid *prepare_mol_grid( OEMolBase *mol );
-void send_environment_var_to_pvm_slaves( const string &var_name ,
-                                         const string &var_val ,
-                                         vector<int> &slave_tids );
-void set_environment_var_from_pvm();
-bool was_it_a_pvm_failure_message( int bufid , int &dead_tid );
+void set_environment_var_from_mpi();
 
-// In pvm_string_subs.cc
-// pack a C++ string into a pvm buffer
-void pack_string( const string &str );
-// unpack a C++ string from pvm buffer
-void unpack_string( string &str );
-void pack_strings_vector( const vector<string> &strs );
-void unpack_strings_vector( vector<string> &strs );
+// In mpi_string_subs.cc
+void mpi_send_string( const string &str , int dest_rank );
+void mpi_send_strings_vector( const vector<string> &strs , int dest_rank );
+void mpi_rec_string( int source_rank , string &str );
+void mpi_rec_strings_vector( int source_rank , vector<string> &strs );
 
 void split_filename( const string &filename , string &file_root ,
                      string &file_ext );
@@ -72,23 +61,26 @@ void pack_smarts_defs_into_pvm_buffer( vector<pair<string,string> > &input_smart
                                        vector<pair<string,string> > &smarts_sub_defn );
 void unpack_smarts_defs_from_pvm_buffer( vector<pair<string,string> > &input_smarts ,
                                          vector<pair<string,string> > &smarts_sub_defn );
-void send_openeye_license_to_slaves( const vector<int> &slave_tids );
-void send_cwd_to_slaves( const vector<int> &slave_tids );
-void send_finished_messages( const vector<int> &slave_tids );
-void send_database_details_to_slaves( const vector<int> &slave_tids );
+void send_openeye_license_to_slaves( int world_size );
+void send_cwd_to_slaves( int world_size );
+void send_finished_messages( int world_size );
+void send_database_details_to_slaves( int world_size );
 void receive_new_cwd();
 void receive_database_details( int &db_start , int &db_step );
-void send_progress_to_master( const string &progress_report );
 
-// in eponymous file
-unsigned step_oemolstream( oemolistream &ims , int step );
-// also in step_oemolstream due to laziness
+typedef enum { MOLS_AND_SCORES } OUTPUT_FORMAT;
+
+typedef boost::shared_ptr<OEMol> pOEMol;
+
+// in step_oemolstream.cc
+namespace DACLIB {
 void open_databasefile( const string &db_file ,
                         bool single_conf_mols ,
-                        oemolistream &ims );
-
-// Message that a PVM process has died as suggested in the PVM manual
-const int TASK_DIED = 11;
+                        oemolistream *&ims );
+pOEMol read_nth_mol_from_oemolistream( unsigned int next_mol ,
+                                       const vector<string> &db_files ,
+                                       bool single_conf_mols );
+}
 
 // ***************************************************************************
 void read_smarts_file( const string &smarts_file ,
@@ -388,20 +380,44 @@ void prepare_volume_grids( const string &protein_file , PPhoreQuery &query ,
 }
 
 // ********************************************************************
-void output_setup( PluralitySettings &plurality_settings ,
-                   PharmPoint &pharm_points , PPhoreQuery &query ,
-                   oemolostream &mol_out_stream , ofstream &out_stream ) {
+OUTPUT_FORMAT initialise_output_streams( const string &output_file_root ,
+                                         const string &output_file_ext ,
+                                         PluralitySettings &plurality_settings ,
+                                         PharmPoint &pharm_points ,
+                                         PPhoreQuery &query ,
+                                         oemolostream  &mol_out_stream ,
+                                         ofstream &out_stream ) {
 
-  string output_file_root , output_file_ext;
-  DACLIB::split_filename( plurality_settings.output_file() , output_file_root ,
-                          output_file_ext );
+  OUTPUT_FORMAT output_format;
 
+  // default to mols and scores style, hoping that we got some sensible
+  // file names.
+  output_format = MOLS_AND_SCORES;
   initialise_mol_and_scores_outstreams( output_file_root ,
 					plurality_settings.output_file() ,
 					plurality_settings.scores_only() ,
 					plurality_settings.comma_output() ,
 					plurality_settings.grid_vol_files() ,
 					query , mol_out_stream , out_stream );
+
+  return output_format;
+
+}
+
+// ********************************************************************
+void output_setup( PluralitySettings &plurality_settings ,
+                   PharmPoint &pharm_points , PPhoreQuery &query ,
+                   OUTPUT_FORMAT &output_format ,
+                   oemolostream &mol_out_stream , ofstream &out_stream ) {
+
+  string output_file_root , output_file_ext;
+  DACLIB::split_filename( plurality_settings.output_file() , output_file_root ,
+                          output_file_ext );
+
+  output_format =
+      initialise_output_streams( output_file_root , output_file_ext ,
+                                 plurality_settings , pharm_points , query ,
+                                 mol_out_stream , out_stream );
 
 }
 
@@ -483,8 +499,8 @@ void setup_search( PluralitySettings &plurality_settings ,
 }
 
 // ********************************************************************
-void report_progress( int mol_count , int conf_count ,
-                      int hit_count , int hit_mol_count ,
+void report_progress( unsigned int mol_count , unsigned int conf_count ,
+                      unsigned int hit_count , unsigned int hit_mol_count ,
                       ostream &os ) {
 
   if( ( mol_count < 100 && !( mol_count % 10 ) ) ||
@@ -511,7 +527,7 @@ void serial_plurality_search( PluralitySettings &plurality_settings ) {
   PPhoreQuery query;
   boost::shared_ptr<OEMolBase> protein;
   vector<string> mol_subset;
-  oemolistream ims;
+  oemolistream *ims = 0;
 
   setup_search( plurality_settings , input_smarts , smarts_sub_defn ,
                 pharm_points , query , protein , mol_subset );
@@ -520,8 +536,9 @@ void serial_plurality_search( PluralitySettings &plurality_settings ) {
 
   oemolostream mol_out_stream;
   ofstream out_stream;
+  OUTPUT_FORMAT output_format;
   output_setup( plurality_settings , pharm_points , query ,
-                mol_out_stream , out_stream );
+                output_format , mol_out_stream , out_stream );
 
   boost::shared_ptr<DACLIB::VolumeGrid> protein_grid;
   boost::shared_ptr<DACLIB::VolumeGrid> soft_exc_vol_grid;
@@ -544,14 +561,15 @@ void serial_plurality_search( PluralitySettings &plurality_settings ) {
     exit( 1 );
   }
 
-  int mol_count = 0 , conf_count = 0 , hit_mol_count = 0 , hit_count = 0;
+  unsigned int mol_count = 0 , conf_count = 0 , hit_mol_count = 0 , hit_count = 0;
   vector<string> db_files = plurality_settings.db_files();
   BOOST_FOREACH( string db_file , db_files ) {
 
     cout << "Database file : " << db_file << endl;
-    open_databasefile( db_file , false , ims );
+    ims = new oemolistream;
+    DACLIB::open_databasefile( db_file , false , ims );
 
-    while( ims >> target_mol ) {
+    while( *ims >> target_mol ) {
       OEAssignAromaticFlags( target_mol , OEAroModelDaylight );
       vector<boost::shared_ptr<PluralityHit> > hits;
 #ifdef NOTYET
@@ -563,18 +581,24 @@ void serial_plurality_search( PluralitySettings &plurality_settings ) {
                              plurality_settings.hits_to_output() ,
                              not_smarts_subs , hits ) ) {
         hit_count += hits.size();
-        if( !hits.empty() )
+        if( !hits.empty() ) {
           ++hit_mol_count;
+        }
         ++mol_count;
         conf_count += target_mol.NumConfs();
       }
-      output_hits_to_mol_and_scores( hits , plurality_settings.scores_only() ,
-				     plurality_settings.comma_output() ,
-				     mol_out_stream , out_stream );
+      switch( output_format ) {
+      case MOLS_AND_SCORES :
+        output_hits_to_mol_and_scores( hits , plurality_settings.scores_only() ,
+                                       plurality_settings.comma_output() ,
+                                       mol_out_stream , out_stream );
+        break;
+      }
 
       report_progress( mol_count , conf_count , hit_count , hit_mol_count , cout );
     }
-    ims.close();
+    ims->close();
+    delete ims;
 
   }
 
@@ -584,35 +608,36 @@ void serial_plurality_search( PluralitySettings &plurality_settings ) {
 
 // ********************************************************************
 void send_query_details_to_slaves( PluralitySettings &plurality_settings ,
-                                   vector<int> &slave_tids ) {
+                                   int world_size ) {
 
-  send_openeye_license_to_slaves( slave_tids );
-  send_cwd_to_slaves( slave_tids );
+  send_openeye_license_to_slaves( world_size );
+  send_cwd_to_slaves( world_size );
 
-  pvm_initsend( PvmDataDefault );
-  pvm_pkstr( const_cast<char *>( string( "Query_Details" ).c_str() ) );
-
-  plurality_settings.pack_contents_into_pvm_buffer();
-
-  pvm_mcast( &slave_tids[0] , slave_tids.size() , 0 );
+  for( int i = 1 ; i < world_size ; ++i ) {
+    DACLIB::mpi_send_string( string( "Query_Details" ) , i );
+    plurality_settings.send_contents_via_mpi( i );
+  }
 
 }
 
 // ********************************************************************
 // send the given slave a request for results and store the answer
-void get_result_from_slave( vector<boost::shared_ptr<PluralityHit> > &hits ,
-			    int &mol_count , int &conf_count ,
-			    int &hit_count , int &hit_mol_count ) {
+void get_result_from_slave( int source_rank ,
+                            vector<boost::shared_ptr<PluralityHit> > &hits ,
+                            int &mol_count , int &conf_count ,
+                            int &hit_count , int &hit_mol_count ) {
 
-  int num_to_rec;
-  pvm_upkint( &num_to_rec , 1 , 1 );
-  for( int i = 0 ; i < num_to_rec ; ++i ) {
+  unsigned int num_to_rec;
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , source_rank , 0 ,
+            MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+  for( unsigned int i = 0 ; i < num_to_rec ; ++i ) {
     hits.push_back( boost::shared_ptr<PluralityHit>( new PluralityHit ) );
-    hits.back()->unpack_from_pvm_buffer();
+    hits.back()->receive_via_mpi( source_rank );
   }
 
   int stats[4];
-  pvm_upkint( stats , 4 , 1 );
+  MPI_Recv( stats , 4 , MPI_INT , source_rank , 0 ,
+            MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   mol_count += stats[0];
   conf_count += stats[1];
   hit_count += stats[2];
@@ -621,12 +646,13 @@ void get_result_from_slave( vector<boost::shared_ptr<PluralityHit> > &hits ,
 }
 
 // ********************************************************************
-void get_search_stats_from_slave( int &mol_count , int &conf_count ,
+void get_search_stats_from_slave( int source_rank ,
+                                  int &mol_count , int &conf_count ,
                                   int &hit_count , int &hit_mol_count ) {
 
-  // message buffer already open
   int stats[4];
-  pvm_upkint( stats , 4 , 1 );
+  MPI_Recv( stats , 4 , MPI_UNSIGNED , source_rank , 0 ,
+            MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   mol_count += stats[0];
   conf_count += stats[1];
   hit_count += stats[2];
@@ -635,87 +661,82 @@ void get_search_stats_from_slave( int &mol_count , int &conf_count ,
 }
 
 // ********************************************************************
-// receives hits from slaves, and writes them to file.
-void get_results_from_slaves( vector<int> &slave_tids ,
-                              PluralitySettings &ps ,
-                              oemolostream &mol_out_stream ,
-                              ofstream &out_stream ,
-                              int &mol_count , int &conf_count ,
-                              int &hit_count , int &hit_mol_count ) {
+// receives hits from slave, and writes them to file.
+void get_results_from_slave( int source_rank ,
+                             PluralitySettings &ps ,
+                             OUTPUT_FORMAT output_format ,
+                             oemolostream &mol_out_stream ,
+                             ofstream &out_stream ,
+                             unsigned int &mol_count , unsigned int &conf_count ,
+                             unsigned int &hit_count , unsigned int &hit_mol_count ) {
 
+  vector<boost::shared_ptr<PluralityHit> > hits;
+  unsigned int num_to_rec;
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , source_rank , 0 ,
+            MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+  for( unsigned int i = 0 ; i < num_to_rec ; ++i ) {
+    hits.push_back( boost::shared_ptr<PluralityHit>( new PluralityHit ) );
+    hits.back()->receive_via_mpi( source_rank );
+  }
+
+  unsigned int stats[4];
+  MPI_Recv( stats , 4 , MPI_UNSIGNED , source_rank , 0 ,
+            MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+  mol_count += stats[0];
+  conf_count += stats[1];
+  hit_count += stats[2];
+  hit_mol_count += stats[3];
+
+  switch( output_format ) {
+  case MOLS_AND_SCORES :
+    output_hits_to_mol_and_scores( hits , ps.scores_only() ,
+                                   ps.comma_output() , mol_out_stream ,
+                                   out_stream );
+    break;
+  }
+
+}
+
+// ********************************************************************
+void send_parallel_searches( int world_size , PluralitySettings &ps ,
+                             OUTPUT_FORMAT output_format ,
+                             oemolostream &mol_out_stream ,
+                             ofstream &out_stream ,
+                             unsigned int &mol_count , unsigned int &conf_count ,
+                             unsigned int &hit_count , unsigned int &hit_mol_count ) {
+
+  int num_finished = 0;
+  int num_slaves = world_size - 1; // process 0 is the master
+  unsigned int curr_mol = 0;
+
+  while( num_finished < num_slaves ) {
+
+    MPI_Status status;
+    MPI_Probe( MPI_ANY_SOURCE , 0 , MPI_COMM_WORLD , &status );
+    string msg;
+    DACLIB::mpi_rec_string( status.MPI_SOURCE , msg );
 #ifdef NOTYET
-  cout << "get_results_from_slave : " << pvm_mytid() << endl;
+    cout << "Message : " << msg << " from " << status.MPI_SOURCE << endl;
 #endif
-
-  while( 1 ) {
-    if( slave_tids.empty() ) {
-      break;
-    }
-
-    int bufid = pvm_recv( -1 , -1 );
+    if( string( "Results" ) == msg ) {
+      get_results_from_slave( status.MPI_SOURCE , ps , output_format ,
+                              mol_out_stream , out_stream ,
+                              mol_count , conf_count , hit_count ,
+                              hit_mol_count );
+      report_progress( mol_count , conf_count , hit_count , hit_mol_count , cout );
+    } else if( string( "Send_Mol_Num" ) == msg ) {
+      DACLIB::mpi_send_string( string( "Next_Mol_Num" ) , status.MPI_SOURCE );
+      MPI_Send( &curr_mol , 1 , MPI_UNSIGNED , status.MPI_SOURCE , 0 , MPI_COMM_WORLD );
+      ++curr_mol;
 #ifdef NOTYET
-    cout << "\nNew message : bufid : " << bufid << endl;
+      cout << "Sent " << curr_mol - 1 << " to " << status.MPI_SOURCE << endl;
 #endif
-    int nbytes , msgtag , dead_tid;
-    pvm_bufinfo( bufid , &nbytes , &msgtag , &dead_tid );
+    } else if( string( "Search_Finished" ) == msg ) {
 #ifdef NOTYET
-    cout << "nbytes = " << nbytes << "  msgtag = " << msgtag << "  dead_tid = " << dead_tid << endl;
+      cout << "Search_Finished from " << status.MPI_SOURCE << endl;
 #endif
-    int done_tid;
-    if( DACLIB::was_it_a_pvm_failure_message( bufid , done_tid ) ) {
-
-      cerr << "Process " << done_tid << " has gone belly up, taking all" << endl
-           << "its results with it. Carrying on, but there will be missing"
-           << endl
-           << "hits." << endl;
-      cout << "Process " << done_tid << " has gone belly up, taking all" << endl
-           << "its results with it. Carrying on, but there will be missing"
-           << endl
-           << "hits." << endl;
-      slave_tids.erase( find( slave_tids.begin() , slave_tids.end() , done_tid ) );
-      if( slave_tids.empty() ) {
-        cerr << "All slaves are now dead, so that's it for now. This could" << endl
-             << "be a problem with the program, it could be a problem with" << endl
-             << "your database, or it could be a problem with the machines" << endl
-             << "the slaves were running on, including the possibility that" << endl
-             << "the OpenEye license isn't set correctly on the slave" << endl
-             << "machines." << endl;
-        pvm_exit();
-        exit( 1 );
-      }
-
-    } else {
-
-      // if we're here, the message wasn't a failure message. It could be
-      // a progress report or a load of results. done_tid isn't
-      // filled in this case, so need to get it from the message
-      char msg[1000]; // it'll be big enough for the message header
-      pvm_upkstr( msg );
-#ifdef NOTYET
-      cout << "Message : " << msg << endl;
-#endif
-      if( !strcmp( msg , "Results" ) ) {
-        int slave_tid;
-        pvm_upkint( &slave_tid , 1 , 1 );
-        cout << "Results from slave : " << slave_tid << endl;
-        vector<boost::shared_ptr<PluralityHit> > hits;
-        get_result_from_slave( hits , mol_count , conf_count , hit_count ,
-			       hit_mol_count );
-	output_hits_to_mol_and_scores( hits , ps.scores_only() ,
-				       ps.comma_output() , mol_out_stream ,
-				       out_stream );
-        slave_tids.erase( find( slave_tids.begin() , slave_tids.end() , slave_tid ) );
-        cout << "Number of slaves still to report : " << slave_tids.size() << endl;
-      } else if( !strcmp( msg , "Search Stats" ) ) {
-        get_search_stats_from_slave( mol_count , conf_count ,
-				     hit_count , hit_mol_count );
-      } else if( !strcmp( "Progress Report" , msg ) ) {
-        pvm_upkint( &done_tid , 1 , 1 );
-        string prog_rep;
-        DACLIB::unpack_string( prog_rep );
-        cout << done_tid << " : " << prog_rep;
-      }
-
+      ++num_finished;
+      cout << "Number of processes now finished : " << num_finished << " out of " << num_slaves << endl;
     }
   }
 
@@ -723,15 +744,11 @@ void get_results_from_slaves( vector<int> &slave_tids ,
 
 // ********************************************************************
 void parallel_plurality_search( PluralitySettings &plurality_settings ,
-                                vector<int> &slave_tids ) {
+                                int world_size ) {
 
-  send_query_details_to_slaves( plurality_settings , slave_tids );
+  send_query_details_to_slaves( plurality_settings , world_size );
 
-  // send the start mol and step size to each slave, which will
-  // also kick-start the search
-  send_database_details_to_slaves( slave_tids );
-
-  // now the slaves are running, we'll be kicking our heals for a bit
+  // now the slaves are running, we'll be kicking our heels for a bit
   vector<pair<string,string> > input_smarts , smarts_sub_defn;
   PharmPoint pharm_points;
   PPhoreQuery query;
@@ -742,207 +759,145 @@ void parallel_plurality_search( PluralitySettings &plurality_settings ,
 
   oemolostream mol_out_stream;
   ofstream out_stream;
+  OUTPUT_FORMAT output_format;
   output_setup( plurality_settings , pharm_points , query ,
-                mol_out_stream , out_stream );
+                output_format , mol_out_stream , out_stream );
 
-  int mol_count = 0 , conf_count = 0 , hit_count = 0 , hit_mol_count = 0;
-  get_results_from_slaves( slave_tids , plurality_settings ,
-                           mol_out_stream , out_stream ,
-                           mol_count , conf_count , hit_count , hit_mol_count );
-  send_finished_messages( slave_tids );
+  unsigned int mol_count = 0 , conf_count = 0 , hit_count = 0 , hit_mol_count = 0;
+  send_parallel_searches( world_size , plurality_settings ,
+                          output_format , mol_out_stream , out_stream ,
+                          mol_count , conf_count , hit_count ,
+                          hit_mol_count );
+
+  send_finished_messages( world_size );
 
   final_remarks( mol_count , conf_count , hit_count , hit_mol_count );
 
 }
 
 // ********************************************************************
-void send_results_to_master( int master_tid ,
-			     int mol_count , int conf_count ,
-			     int hit_count , int hit_mol_count ,
+void send_results_to_master( unsigned int mol_count , unsigned int conf_count ,
+                             unsigned int hit_count , unsigned int hit_mol_count ,
                              vector<boost::shared_ptr<PluralityHit> > &hits ) {
 
-  pvm_initsend( PvmDataDefault );
-  pvm_pkstr( const_cast<char *>( string( "Results" ).c_str() ) );
-  int my_tid = pvm_mytid();
-  pvm_pkint( &my_tid , 1 , 1 );
+  DACLIB::mpi_send_string( string( "Results" ) , 0 );
+  unsigned int num_to_send = hits.size();
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD );
 
-  int num_to_send = hits.size();
-  cout << "sending " << num_to_send << " hits " << endl;
-  pvm_pkint( &num_to_send , 1 , 1 );
-
-  for( int i = 0 ; i < num_to_send ; ++i ) {
-    hits[i]->pack_into_pvm_buffer();
+  for( unsigned int i = 0 ; i < num_to_send ; ++i ) {
+    hits[i]->send_via_mpi( 0 );
   }
 
-  int stats[4] = { mol_count , conf_count , hit_count , hit_mol_count };
-  pvm_pkint( stats , 4 , 1 );
-  pvm_send( master_tid , 0 );
+  unsigned int stats[4] = { mol_count , conf_count , hit_count , hit_mol_count };
+  MPI_Send( stats , 4 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD );
 
 }
 
 // ********************************************************************
-void send_search_stats_to_master( int master_tid , int mol_count ,
-                                  int conf_count , int hit_count ,
-                                  int hit_mol_count ) {
+bool search_database( int next_mol , PluralitySettings &ps ,
+                      PPhoreQuery &query ,
+                      vector<pair<string,string> > &input_smarts ,
+                      vector<pair<string,string> > &smarts_sub_defn ,
+                      PharmPoint &pharm_points ,
+                      const vector<string> &mol_subset ,
+                      boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
+                      boost::shared_ptr<DACLIB::VolumeGrid> &soft_exc_vol_grid ,
+                      vector<pair<string,DACLIB::VolumeGrid *> > score_vol_grids ,
+                      HITS_TO_OUTPUT hits_to_output ,
+                      vector<boost::shared_ptr<OESubSearch> > &not_smarts_subs ,
+                      vector<boost::shared_ptr<PluralityHit> > &hits ,
+                      unsigned int &mol_count , unsigned int &conf_count ,
+                      unsigned int &hit_mol_count , unsigned int &hit_count ) {
 
-  pvm_initsend( PvmDataDefault );
-  pvm_pkstr( const_cast<char *>( string( "Search Stats" ).c_str() ) );
-  int stats[4] = { mol_count , conf_count , hit_count , hit_mol_count };
-  pvm_pkint( stats , 4 , 1 );
-  pvm_send( master_tid , 0 );
+  pOEMol tmol = DACLIB::read_nth_mol_from_oemolistream( next_mol ,
+                                                        ps.db_files() , false );
 
-}
+  if( !tmol ) {
 
-// ********************************************************************
-void search_databases( int db_start , int db_step , const vector<string> &db_files ,
-                       PPhoreQuery &query ,
-                       vector<pair<string,string> > &input_smarts ,
-                       vector<pair<string,string> > &smarts_sub_defn ,
-                       PharmPoint &pharm_points ,
-                       const vector<string> &mol_subset ,
-                       boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
-                       boost::shared_ptr<DACLIB::VolumeGrid> &soft_exc_vol_grid ,
-                       vector<pair<string,DACLIB::VolumeGrid *> > score_vol_grids ,
-                       HITS_TO_OUTPUT hits_to_output ,
-                       vector<boost::shared_ptr<OESubSearch> > &not_smarts_subs ,
-                       vector<boost::shared_ptr<PluralityHit> > &hits ,
-                       int &mol_count , int &conf_count ,
-                       int &hit_mol_count , int &hit_count ) {
+    // we're done
+    cout << "sending Search_Finished" << endl;
+    DACLIB::mpi_send_string( string( "Search_Finished" ) , 0 );
+    return false;
 
-  OEMol mol;
-  oemolistream db_ims;
+  } else {
 
-  int master_tid = pvm_parent();
-
-  BOOST_FOREACH( string db_file , db_files ) {
-
-    cout << "Database file : " << db_file << endl;
-    open_databasefile( db_file , false , db_ims );
-    if( static_cast<int>( step_oemolstream( db_ims , db_start ) ) < db_start ) {
-      cout << "Problem with database " << db_file
-           << " : couldn't read to " << db_start << " record." << endl;
-      pvm_exit();
-      exit( 1 );
-    }
-
-    while( db_ims >> mol ) {
-      vector<boost::shared_ptr<PluralityHit> > these_hits;
-      if( search_target_mol( mol , query , input_smarts ,
-                             smarts_sub_defn , pharm_points , mol_subset ,
-                             protein_grid , soft_exc_vol_grid , score_vol_grids ,
-                             hits_to_output , not_smarts_subs , these_hits ) ) {
-        hit_count += these_hits.size();
-        if( !these_hits.empty() )
-          ++hit_mol_count;
-        ++mol_count;
-        conf_count += mol.NumConfs();
+#ifdef NOTYET
+    cout << "Searching " << tmol->GetTitle() << endl;
+#endif
+    if( search_target_mol( *tmol , query , input_smarts ,
+                           smarts_sub_defn , pharm_points , mol_subset ,
+                           protein_grid , soft_exc_vol_grid , score_vol_grids ,
+                           hits_to_output , not_smarts_subs , hits ) ) {
+      hit_count += hits.size();
+      if( !hits.empty() ) {
+        ++hit_mol_count;
       }
-      if( !these_hits.empty() ) {
-        hits.insert( hits.end() , these_hits.begin() , these_hits.end() );
-      }
-      // move forward step-1 molecules, unless it hits the end of file early
-      if( static_cast<int>( step_oemolstream( db_ims , db_step - 1 ) ) < db_step - 1 ) {
-        break;
-      }
-      ostringstream oss;
-      report_progress( mol_count , conf_count , hit_count , hit_mol_count , oss );
-      if( !oss.str().empty() ) {
-        send_progress_to_master( oss.str() );
-      }
-      // see if the master has died, in which case stop
-      // the documentation suggests that I should be able to listen just to
-      // messages from the master process by passing master_tid as the 1st
-      // argument of pvm_nrecv, but that doesn't seem to work (at least in
-      // 3.4.6). Nothing else should be passing messages in any case.
-      int bufid = pvm_nrecv( -1 , -1 );
-      if( bufid > 0 ) {
-        // bufid of 0 means nothing received
-        int dead_tid;
-        if( DACLIB::was_it_a_pvm_failure_message( bufid , dead_tid ) &&
-            dead_tid == master_tid ) {
-          cerr << "AWOOGA : The master is dead.  Following him on into the"
-               << " afterlife." << endl;
-          pvm_exit();
-          exit( 1 );
-        }
-      }
+      ++mol_count;
+      conf_count += tmol->NumConfs();
 
     }
 
-    db_ims.close();
   }
+
+  return true;
 
 }
 
 // ********************************************************************
 void slave_event_loop() {
 
-  char     msg1[1000];
+  string msg;
 
   PluralitySettings plurality_settings;
   vector<pair<string,string> > input_smarts , smarts_sub_defn;
-  PharmPointPVM pharm_points;
+  PharmPoint pharm_points;
   PPhoreQuery query;
   boost::shared_ptr<OEMolBase> protein;
   vector<string> mol_subset;
   boost::shared_ptr<DACLIB::VolumeGrid> protein_grid;
   boost::shared_ptr<DACLIB::VolumeGrid> soft_exc_vol_grid;
   vector<boost::shared_ptr<OESubSearch> > not_smarts_subs;
-  vector<boost::shared_ptr<PluralityHit> > hits;
   vector<pair<string,DACLIB::VolumeGrid *> > score_vol_grids;
   vector<string> db_files;
   HITS_TO_OUTPUT hits_to_output = BEST_HITS_ONLY;
-  int db_start , db_step;
 
-  int master_tid = pvm_parent();
-  if( PvmNoParent == master_tid ) {
-    // It's an error, though probably a deliberate one
-    cerr << "ERROR - strange PVM behaviour for plurality." << endl;
-    exit( 1 );
-  }
-
-  // we want to know if the master dies
-  pvm_notify( PvmTaskExit , TASK_DIED , 1 , &master_tid );
-
-  int mol_count = 0 , conf_count = 0 , hit_mol_count = 0 , hit_count = 0;
   while( 1 ) {
 
-    // see if there's a message from the parent
-    int bufid = pvm_recv( -1 , -1 );
-    int dead_tid;
-    if( DACLIB::was_it_a_pvm_failure_message( bufid , dead_tid ) &&
-        dead_tid == master_tid ) {
-      cerr << "AWOOGA : The master is dead.  Following him on into the"
-           << " afterlife." << endl;
-      pvm_exit();
-      exit( 1 );
-    }
+    DACLIB::mpi_rec_string( 0 , msg );
 
-    pvm_upkstr( msg1 );
 #if DEBUG == 1
-    cout << my_tid << "  received message : " << msg1 << endl;
+    int world_rank;
+    MPI_Comm_rank( MPI_COMM_WORLD , &world_rank );
+    cout << world_rank << " received message : " << msg << endl;
 #endif
 
-    if( !strcmp( "Finished" , msg1 ) ) {
+    if( string( "Finished" ) == msg ) {
       break;
-    } else if( !strcmp( "Set_Environment" , msg1 ) ) {
-      DACLIB::set_environment_var_from_pvm();
-    } else if( !strcmp( "Query_Details" , msg1 ) ) {
-      plurality_settings.unpack_contents_from_pvm_buffer();
+    } else if( string( "Set_Environment" ) == msg ) {
+      DACLIB::set_environment_var_from_mpi();
+    } else if( string( "Query_Details" ) == msg ) {
+      plurality_settings.receive_contents_via_mpi();
       setup_search( plurality_settings , input_smarts , smarts_sub_defn ,
                     pharm_points , query , protein , mol_subset );
-    } else if( !strcmp( "Database_Steps" , msg1 ) ) {
-      receive_database_details( db_start , db_step );
-      search_databases( db_start , db_step , plurality_settings.db_files() ,
-                        query , input_smarts ,
-                        smarts_sub_defn , pharm_points , mol_subset ,
-                        protein_grid , soft_exc_vol_grid ,
-                        score_vol_grids , hits_to_output ,
-                        not_smarts_subs , hits , mol_count , conf_count ,
-                        hit_mol_count , hit_count );
-      send_results_to_master( master_tid , mol_count , conf_count ,
-			      hit_count , hit_mol_count , hits );
-    } else if( !strcmp( "New_CWD" , msg1 ) ) {
+      DACLIB::mpi_send_string( string( "Send_Mol_Num" ) , 0 );
+    } else if( string( "Next_Mol_Num" ) == msg ) {
+      vector<boost::shared_ptr<PluralityHit> > hits;
+      unsigned int next_mol;
+      MPI_Recv( &next_mol , 1 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+      unsigned int mol_count = 0 , conf_count = 0 , hit_mol_count = 0 , hit_count = 0;
+      if( search_database( next_mol , plurality_settings ,
+                           query , input_smarts ,
+                           smarts_sub_defn , pharm_points , mol_subset ,
+                           protein_grid , soft_exc_vol_grid ,
+                           score_vol_grids , hits_to_output ,
+                           not_smarts_subs , hits , mol_count , conf_count ,
+                           hit_mol_count , hit_count ) ) {
+        send_results_to_master( mol_count , conf_count ,
+                                hit_count , hit_mol_count , hits );
+        hits.clear();
+        DACLIB::mpi_send_string( string ( "Send_Mol_Num" ) , 0 );
+      }
+    } else if( string( "New_CWD" ) == msg ) {
       receive_new_cwd();
     }
 

@@ -1,6 +1,6 @@
 //
 // file PPhoreQuery.cc
-// Dave Cosgrove
+// David Cosgrove
 // 13th September 2007
 //
 
@@ -11,7 +11,7 @@
 #include <boost/tuple/tuple_io.hpp>
 
 #include <oechem.h>
-#include <pvm3.h>
+#include <mpi.h>
 
 #include "stddefs.H"
 
@@ -24,12 +24,12 @@ using namespace std;
 using namespace OEChem;
 
 namespace DACLIB {
-  double angle( const double *cds1 , const double *cds2 , const double *cds3 ,
-		bool degs = true );
-  double torsion( const double *cds1 , const double *cds2 , const double *cds3 ,
-		  const double *cds4 , bool degs = true );
-  void pack_strings_vector( const vector<string> &strs );
-  void unpack_strings_vector( vector<string> &strs );
+double angle( const double *cds1 , const double *cds2 , const double *cds3 ,
+              bool degs = true );
+double torsion( const double *cds1 , const double *cds2 , const double *cds3 ,
+                const double *cds4 , bool degs = true );
+void mpi_send_strings_vector( const vector<string> &strs , int dest_rank );
+void mpi_rec_strings_vector( int source_rank , vector<string> &strs );
 }
 
 //****************************************************************************
@@ -62,16 +62,16 @@ void PPhoreQuery::read_query_file( const string &filename ) {
     
     if( next_line.empty() ) {
       if( ifs.eof() || !ifs.good() )
-	break;
+        break;
       else
-	continue; // it's a blank line
+        continue; // it's a blank line
     }
     if( '#' == next_line[0] )
       continue; // it's a comment line
     istringstream ss( next_line );
     
     ss >> line_type;
- 
+
     if( string( "Point" ) == line_type ) {
       parse_point_line( ss );
     } else if( string( "Coords" ) == line_type ) {
@@ -275,7 +275,7 @@ void PPhoreQuery::parse_torsion_line( istringstream &ss ) {
 
 //****************************************************************************
 void PPhoreQuery::parse_exc_vol_line( istringstream &ss ,
-				      vector<BTV> &exc_vols ) {
+                                      vector<BTV> &exc_vols ) {
 
   float x , y , z , r;
   ss >> x >> y >> z >> r;
@@ -292,7 +292,7 @@ void PPhoreQuery::verify_query_details() {
 
   if( point_types_.empty() ) {
     throw PPhoreQueryFileError( filename_ ,
-				string( "No points in query." ) );
+                                string( "No points in query." ) );
   }
   verify_coord_details();
   verify_distance_details();
@@ -311,10 +311,10 @@ void PPhoreQuery::verify_coord_details() {
 
   for( int i = 0 , is = coords_.size() ; i < is ; ++i ) {
     if( coords_[i].get<0>() < 1 ||
-	coords_[i].get<0>() > static_cast<int>( point_types_.size() ) ) {
+        coords_[i].get<0>() > static_cast<int>( point_types_.size() ) ) {
       ostringstream oss1;
       oss1 << "Coords " << boost::tuples::set_open( ' ' )
-	   << boost::tuples::set_close( ' ' ) << coords_[i];
+           << boost::tuples::set_close( ' ' ) << coords_[i];
       ostringstream oss2;
       oss2 << filename_ << " : Point number is greater than number of points.";
       throw PPhoreQueryFileReadError( oss2.str() , oss1.str() );
@@ -329,14 +329,14 @@ void PPhoreQuery::verify_distance_details() {
 
   for( int i = 0 , is = distances_.size() ; i < is ; ++i ) {
     if( distances_[i].get<0>() < 1 || distances_[i].get<1>() < 1 ||
-	distances_[i].get<0>() > static_cast<int>( point_types_.size() ) ||
-	distances_[i].get<1>() > static_cast<int>( point_types_.size() ) ) {
+        distances_[i].get<0>() > static_cast<int>( point_types_.size() ) ||
+        distances_[i].get<1>() > static_cast<int>( point_types_.size() ) ) {
       ostringstream oss1;
       oss1 << "Distance " << boost::tuples::set_open( ' ' )
-	   << boost::tuples::set_close( ' ' ) << distances_[i];
+           << boost::tuples::set_close( ' ' ) << distances_[i];
       ostringstream oss2;
       oss2 << filename_ << " : Point number is greater than number of points.";
-      throw PPhoreQueryFileReadError( oss2.str() , oss1.str() );      
+      throw PPhoreQueryFileReadError( oss2.str() , oss1.str() );
     }
     --distances_[i].get<0>();
     --distances_[i].get<1>();
@@ -349,16 +349,16 @@ void PPhoreQuery::verify_angle_details() {
 
   for( int i = 0 , is = angles_.size() ; i < is ; ++i ) {
     if( angles_[i].get<0>() < 1 || angles_[i].get<1>() < 1 ||
-	angles_[i].get<2>() < 1 ||
-	angles_[i].get<0>() > static_cast<int>( point_types_.size() ) ||
-	angles_[i].get<1>() > static_cast<int>( point_types_.size() ) ||
-	angles_[i].get<2>() > static_cast<int>( point_types_.size() ) ) {
+        angles_[i].get<2>() < 1 ||
+        angles_[i].get<0>() > static_cast<int>( point_types_.size() ) ||
+        angles_[i].get<1>() > static_cast<int>( point_types_.size() ) ||
+        angles_[i].get<2>() > static_cast<int>( point_types_.size() ) ) {
       ostringstream oss1;
       oss1 << "Angle " << boost::tuples::set_open( ' ' )
-	   << boost::tuples::set_close( ' ' ) << angles_[i];
+           << boost::tuples::set_close( ' ' ) << angles_[i];
       ostringstream oss2;
       oss2 << filename_ << " : Point number is greater than number of points.";
-      throw PPhoreQueryFileReadError( oss2.str() , oss1.str() );      
+      throw PPhoreQueryFileReadError( oss2.str() , oss1.str() );
     }
     --angles_[i].get<0>();
     --angles_[i].get<1>();
@@ -372,17 +372,17 @@ void PPhoreQuery::verify_torsion_details() {
 
   for( int i = 0 , is = torsions_.size() ; i < is ; ++i ) {
     if( torsions_[i].get<0>() < 1 || torsions_[i].get<1>() < 1 ||
-	torsions_[i].get<2>() < 1 || torsions_[i].get<3>() < 1 ||
-	torsions_[i].get<0>() > static_cast<int>( point_types_.size() ) ||
-	torsions_[i].get<1>() > static_cast<int>( point_types_.size() ) ||
-	torsions_[i].get<2>() > static_cast<int>( point_types_.size() ) ||
-	torsions_[i].get<3>() > static_cast<int>( point_types_.size() ) ) {
+        torsions_[i].get<2>() < 1 || torsions_[i].get<3>() < 1 ||
+        torsions_[i].get<0>() > static_cast<int>( point_types_.size() ) ||
+        torsions_[i].get<1>() > static_cast<int>( point_types_.size() ) ||
+        torsions_[i].get<2>() > static_cast<int>( point_types_.size() ) ||
+        torsions_[i].get<3>() > static_cast<int>( point_types_.size() ) ) {
       ostringstream oss1;
       oss1 << "Torsion " << boost::tuples::set_open( ' ' )
-	   << boost::tuples::set_close( ' ' ) << torsions_[i];
+           << boost::tuples::set_close( ' ' ) << torsions_[i];
       ostringstream oss2;
       oss2 << filename_ << " : Point number is greater than number of points.";
-      throw PPhoreQueryFileReadError( oss2.str() , oss1.str() );      
+      throw PPhoreQueryFileReadError( oss2.str() , oss1.str() );
     }
     --torsions_[i].get<0>();
     --torsions_[i].get<1>();
@@ -404,7 +404,7 @@ void PPhoreQuery::assemble_overlay_coords() {
     overlay_cds_[j++] = coords_[i].get<2>();
     overlay_cds_[j++] = coords_[i].get<3>();
   }
-      
+
 }
 
 // ****************************************************************************
@@ -481,7 +481,7 @@ short **PPhoreQuery::form_m0( vector<SinglePPhoreSite *> &target_sites ) {
   for( int i = 0 ; i < nts ; ++i ) {
     for( int j = 0 ; j < npt ; ++j ) {
       if( point_types_[j] == target_sites[i]->get_type_string() ) {
-	m0[j][i] = 1;
+        m0[j][i] = 1;
       }
     }
   }
@@ -507,14 +507,14 @@ short **PPhoreQuery::form_m0( vector<SinglePPhoreSite *> &target_sites ) {
 // what we trying to match this PPhoreQuery with)
 // 
 bool PPhoreQuery::solution_possible( short **m , int num_rows ,
-				     int num_cols ) {
+                                     int num_cols ) {
 
   for( int i = 0 ; i < num_rows ; ++i ) {
     bool all_zero = true;
     for( int j = 0 ; j < num_cols ; ++j ) {
       if( m[i][j] ) {
-	all_zero = false;
-	break;
+        all_zero = false;
+        break;
       }
     }
     if( all_zero )
@@ -526,8 +526,8 @@ bool PPhoreQuery::solution_possible( short **m , int num_rows ,
     bool zero_col = true;
     for( int j = 0 ; j < num_rows ; ++j ) {
       if( m[j][i] ) {
-	zero_col = false;
-	break;
+        zero_col = false;
+        break;
       }
     }
     if( zero_col )
@@ -543,8 +543,8 @@ bool PPhoreQuery::solution_possible( short **m , int num_rows ,
 // *****************************************************************************
 // use an Ullmann-type procedure to find the hits
 void PPhoreQuery::extend_subgraph( int row_num , short **m , const int num_rows ,
-				   const int num_cols , const float **sq_dist_mat ,
-				   vector<vector<int> > &hit_points ) {
+                                   const int num_cols , const float **sq_dist_mat ,
+                                   vector<vector<int> > &hit_points ) {
 
   short **this_m = DACLIB::make_2d_matrix<short>( num_rows , num_cols );
 
@@ -559,16 +559,16 @@ void PPhoreQuery::extend_subgraph( int row_num , short **m , const int num_rows 
       // match
       copy( m[0] , m[0] + num_rows * num_cols , this_m[0] );
       if( !refine_m( num_cols , sq_dist_mat , row_num , i , this_m ) )
-	continue;
+        continue;
 
       if( check_for_solution( this_m , num_rows , num_cols ) ) {
-	store_solution( this_m , num_rows , num_cols , hit_points );
-	continue;
+        store_solution( this_m , num_rows , num_cols , hit_points );
+        continue;
       }
       if( solution_possible( this_m , num_rows , num_cols ) &&
-	  row_num < num_rows - 1 )
-	extend_subgraph( row_num + 1 , this_m , num_rows , num_cols ,
-			 sq_dist_mat , hit_points );
+          row_num < num_rows - 1 )
+        extend_subgraph( row_num + 1 , this_m , num_rows , num_cols ,
+                         sq_dist_mat , hit_points );
     }
   }
 
@@ -581,7 +581,7 @@ void PPhoreQuery::extend_subgraph( int row_num , short **m , const int num_rows 
 // refine the matrix until all possible incompatabilities have been removed
 // or no solution can result.
 bool PPhoreQuery::refine_m( const int num_cols , const float **sq_dist_mat ,
-			    const int row_num , const int col_num , short **m ) {
+                            const int row_num , const int col_num , short **m ) {
 
   const int num_rows = point_types_.size();
 
@@ -608,79 +608,79 @@ bool PPhoreQuery::refine_m( const int num_cols , const float **sq_dist_mat ,
     cout << "Refining" << endl;
     for( int i = 0 ; i < num_rows ; ++i ) {
       for( int j = 0 ; j < num_cols ; ++j )
-	cout << m[i][j] << " ";
+        cout << m[i][j] << " ";
       cout << endl;
     }
 #endif
     bool change = false;
     for( int i = 0 ; i < num_rows ; ++i ) {
       for( int j = 0 ; j < num_cols ; ++j ) {
-	if( m[i][j] ) {
+        if( m[i][j] ) {
 #ifdef NOTYET
-	  cout << "checking q " << i << " matches t " << j << endl;
+          cout << "checking q " << i << " matches t " << j << endl;
 #endif
-	  // j in the target could correspond to i in the query. Check this by
-	  // ensuring that for all query contraints involving i, there is at
-	  // least one match in the target. If there isn't, then i and j can't
-	  // match, so set m[i][j] to 0.
-	  bool early_k_break = false;
-	  for( int k = 0 ; k < num_rows ; ++k ) {
-	    if( k == i )
-	      continue;
-	    float upper_c , lower_c;
-	    if( i < k ) {
-	      upper_c = sq_dist_vals_[i][k];
-	      lower_c = sq_dist_vals_[k][i];
-	    } else {
-	      upper_c = sq_dist_vals_[k][i];
-	      lower_c = sq_dist_vals_[i][k];
-	    }
+          // j in the target could correspond to i in the query. Check this by
+          // ensuring that for all query contraints involving i, there is at
+          // least one match in the target. If there isn't, then i and j can't
+          // match, so set m[i][j] to 0.
+          bool early_k_break = false;
+          for( int k = 0 ; k < num_rows ; ++k ) {
+            if( k == i )
+              continue;
+            float upper_c , lower_c;
+            if( i < k ) {
+              upper_c = sq_dist_vals_[i][k];
+              lower_c = sq_dist_vals_[k][i];
+            } else {
+              upper_c = sq_dist_vals_[k][i];
+              lower_c = sq_dist_vals_[i][k];
+            }
 #ifdef NOTYET
-	    cout << i << " -> " << k << " contraints : "
-		 << lower_c << " -> " << upper_c << endl;
+            cout << i << " -> " << k << " contraints : "
+                 << lower_c << " -> " << upper_c << endl;
 #endif
-	    bool early_l_break = false;
-	    for( int l = 0 ; l < num_cols ; l++ ) {
-	      // we know that i and j are the same type because m[i][j]
-	      // wouldn't be set if they weren't. Check that k and l are also
-	      // also a possible match (set in m) and that the constraint is
-	      // met
-	      if( m[k][l] ) {
+            bool early_l_break = false;
+            for( int l = 0 ; l < num_cols ; l++ ) {
+              // we know that i and j are the same type because m[i][j]
+              // wouldn't be set if they weren't. Check that k and l are also
+              // also a possible match (set in m) and that the constraint is
+              // met
+              if( m[k][l] ) {
 #ifdef NOTYET
-		cout << j << " --> " << l << " dist : " << sq_dist_mat[j][l] << endl;
+                cout << j << " --> " << l << " dist : " << sq_dist_mat[j][l] << endl;
 #endif
-		// check the distance between j and l is within range for i,k
-		if( sq_dist_mat[j][l] > lower_c && sq_dist_mat[j][l] < upper_c ) {
+                // check the distance between j and l is within range for i,k
+                if( sq_dist_mat[j][l] > lower_c && sq_dist_mat[j][l] < upper_c ) {
 #ifdef NOTYET
-		  cout << "query " << i << " could match target " << j << endl;
+                  cout << "query " << i << " could match target " << j << endl;
 #endif
-		  early_l_break = true;
-		  break;
-		}
-	      }
-	    }
-	    if( !early_l_break ) {
+                  early_l_break = true;
+                  break;
+                }
+              }
+            }
+            if( !early_l_break ) {
 #ifdef NOTYET
-	      cout << "no j->l matches " << i << " -> " << k << endl;
+              cout << "no j->l matches " << i << " -> " << k << endl;
 #endif
-	      early_k_break = true;
-	      break;
-	    }
-	  }
-	  // not all the i constraints can be met by a j, so j can't match i, and
-	  // we know this because we broke out of k loop early
-	  if( early_k_break ) {
-	    m[i][j] = 0;
-	    change = true;
-	  }
-	}
+              early_k_break = true;
+              break;
+            }
+          }
+          // not all the i constraints can be met by a j, so j can't match i, and
+          // we know this because we broke out of k loop early
+          if( early_k_break ) {
+            m[i][j] = 0;
+            change = true;
+          }
+        }
       }
     }
 #ifdef NOTYET
     cout << "Becomes" << endl;
     for( int i = 0 ; i < num_rows ; ++i ) {
       for( int j = 0 ; j < num_cols ; ++j )
-	cout << m[i][j] << " ";
+        cout << m[i][j] << " ";
       cout << endl;
     }
 #endif
@@ -706,7 +706,7 @@ bool PPhoreQuery::refine_m( const int num_cols , const float **sq_dist_mat ,
 // ***************************************************************************
 // it's a solution if all of the rows have 1 1.
 bool PPhoreQuery::check_for_solution( short **m , const int num_rows ,
-				      const int num_cols ) {
+                                      const int num_cols ) {
 
 #ifdef NOTYET
   cout << "Checking solution : " << endl;
@@ -721,10 +721,10 @@ bool PPhoreQuery::check_for_solution( short **m , const int num_rows ,
     bool found_a_one = false;
     for( int j = 0 ; j < num_cols ; ++j ) {
       if( m[i][j] ) {
-	if( found_a_one )
-	  return false;
-	else
-	  found_a_one = true;
+        if( found_a_one )
+          return false;
+        else
+          found_a_one = true;
       }
     }
   }
@@ -739,8 +739,8 @@ bool PPhoreQuery::check_for_solution( short **m , const int num_rows ,
 
 // ***************************************************************************
 void PPhoreQuery::store_solution( short **m , const int num_rows ,
-				  const int num_cols ,
-				  vector<vector<int> > &hit_points ) {
+                                  const int num_cols ,
+                                  vector<vector<int> > &hit_points ) {
 
 #ifdef NOTYET
   cout << "Storing solution : " << endl;
@@ -755,8 +755,8 @@ void PPhoreQuery::store_solution( short **m , const int num_rows ,
   for( int i = 0 ; i < num_rows ; ++i ) {
     for( int j = 0 ; j < num_cols ; ++j ) {
       if( m[i][j] ) {
-	hit_points.back()[i] = j;
-	break;
+        hit_points.back()[i] = j;
+        break;
       }
     }
   }
@@ -781,29 +781,29 @@ void PPhoreQuery::store_solution( short **m , const int num_rows ,
 // ***************************************************************************
 // check that the hit identified by ullman satisfies the angle contraints
 bool PPhoreQuery::angles_ok( vector<SinglePPhoreSite *> &target_sites ,
-			     const vector<int> &hit_points ,
-			     vector<float> &hit_angles ) {
+                             const vector<int> &hit_points ,
+                             vector<float> &hit_angles ) {
 
   hit_angles.clear();
   for( int i = 0 , is = angles_.size() ; i < is ; ++i ) {
     if( angles_[i].get<0>() != angles_[i].get<1>() &&
-	angles_[i].get<1>() != angles_[i].get<2>() ) {
+        angles_[i].get<1>() != angles_[i].get<2>() ) {
       SinglePPhoreSite *site1 = target_sites[hit_points[angles_[i].get<0>()]];
       SinglePPhoreSite *site2 = target_sites[hit_points[angles_[i].get<1>()]];
       SinglePPhoreSite *site3 = target_sites[hit_points[angles_[i].get<2>()]];
       float ang = DACLIB::angle( site1->coords() , site2->coords() ,
-				 site3->coords() , true );
+                                 site3->coords() , true );
       if( ang < angles_[i].get<3>() || ang > angles_[i].get<4>() ) {
-	hit_angles.clear();
-	return false;
+        hit_angles.clear();
+        return false;
       }
       hit_angles.push_back( ang );
     } else {
       float ang;
       if( !angles_with_dirs_ok( angles_[i] , target_sites , hit_points ,
-				ang ) ) {
-	hit_angles.clear();
-	return false;
+                                ang ) ) {
+        hit_angles.clear();
+        return false;
       }
       hit_angles.push_back( ang );
     }
@@ -817,9 +817,9 @@ bool PPhoreQuery::angles_ok( vector<SinglePPhoreSite *> &target_sites ,
 // check the angle with one of the end sites defined by the direction off the
 // central site
 bool PPhoreQuery::angles_with_dirs_ok( BTA &angle ,
-				       vector<SinglePPhoreSite *> &target_sites ,
-				       const vector<int> &hit_points ,
-				       float &hit_ang ) {
+                                       vector<SinglePPhoreSite *> &target_sites ,
+                                       const vector<int> &hit_points ,
+                                       float &hit_ang ) {
 
   int p1 = hit_points[angle.get<0>()];
   int p2 = hit_points[angle.get<1>()];
@@ -882,17 +882,17 @@ bool PPhoreQuery::angles_with_dirs_ok( BTA &angle ,
 // ***************************************************************************
 // check that the hit identified by ullman satisfies the torsion contraints
 bool PPhoreQuery::torsions_ok( vector<SinglePPhoreSite *> &target_sites ,
-			       const vector<int> &hit_points ,
-			       vector<float> &hit_torsions ) {
+                               const vector<int> &hit_points ,
+                               vector<float> &hit_torsions ) {
 
   for( int i = 0 , is = torsions_.size() ; i < is ; ++i ) {
     if( torsions_[i].get<0>() == torsions_[i].get<1>() ||
-	torsions_[i].get<2>() == torsions_[i].get<3>() ) {
+        torsions_[i].get<2>() == torsions_[i].get<3>() ) {
       float tors;
       if( !torsions_with_dirs_ok( torsions_[i] , target_sites , hit_points ,
-				  tors ) ) {
-	hit_torsions.clear();
-	return false;
+                                  tors ) ) {
+        hit_torsions.clear();
+        return false;
       }
       hit_torsions.push_back( tors );
     } else {
@@ -901,12 +901,12 @@ bool PPhoreQuery::torsions_ok( vector<SinglePPhoreSite *> &target_sites ,
       SinglePPhoreSite *site3 = target_sites[hit_points[torsions_[i].get<2>()]];
       SinglePPhoreSite *site4 = target_sites[hit_points[torsions_[i].get<3>()]];
       float tors = DACLIB::torsion( site1->coords() , site2->coords() ,
-				    site3->coords() , site4->coords() , true );
+                                    site3->coords() , site4->coords() , true );
       if( tors < torsions_[i].get<4>() || tors > torsions_[i].get<5>() ) {
-	hit_torsions.clear();
-	return false;
+        hit_torsions.clear();
+        return false;
       } else {
-	hit_torsions.push_back( tors );
+        hit_torsions.push_back( tors );
       }
     }
   }
@@ -917,9 +917,9 @@ bool PPhoreQuery::torsions_ok( vector<SinglePPhoreSite *> &target_sites ,
 
 // ***************************************************************************
 bool PPhoreQuery::torsions_with_dirs_ok( BTT &torsion ,
-					 vector<SinglePPhoreSite *> &target_sites ,
-					 const vector<int> &hit_points ,
-					 float &hit_tors ) {
+                                         vector<SinglePPhoreSite *> &target_sites ,
+                                         const vector<int> &hit_points ,
+                                         float &hit_tors ) {
 
   int p1 = hit_points[torsion.get<0>()];
   int p2 = hit_points[torsion.get<1>()];
@@ -954,9 +954,9 @@ bool PPhoreQuery::torsions_with_dirs_ok( BTT &torsion ,
     } else {
       num_dirs1 = site2->get_num_dirs();
       for( int i = 0 , j = 0 ; i < num_dirs1 ; ++i ) {
-	dirs1[j++] = site2->direction( i )[0];
-	dirs1[j++] = site2->direction( i )[1];
-	dirs1[j++] = site2->direction( i )[2];
+        dirs1[j++] = site2->direction( i )[0];
+        dirs1[j++] = site2->direction( i )[1];
+        dirs1[j++] = site2->direction( i )[2];
       }
     }
   } else {
@@ -980,9 +980,9 @@ bool PPhoreQuery::torsions_with_dirs_ok( BTT &torsion ,
     } else {
       num_dirs2 = site3->get_num_dirs();
       for( int i = 0 , j = 0 ; i < num_dirs2 ; ++i ) {
-	dirs2[j++] = site3->direction( i )[0];
-	dirs2[j++] = site3->direction( i )[1];
-	dirs2[j++] = site3->direction( i )[2];
+        dirs2[j++] = site3->direction( i )[0];
+        dirs2[j++] = site3->direction( i )[1];
+        dirs2[j++] = site3->direction( i )[2];
       }
     }
   } else {
@@ -1003,8 +1003,8 @@ bool PPhoreQuery::torsions_with_dirs_ok( BTT &torsion ,
       cds[11] = cds[8] + dirs2[3 * j + 2];
       float tors = DACLIB::torsion( cds , cds + 3 , cds + 6 , cds + 9 , true );
       if( tors >= torsion.get<4>() && tors <= torsion.get<5>() ) {
-	hit_tors = tors;
-	return true;
+        hit_tors = tors;
+        return true;
       }
     }
   }
@@ -1014,139 +1014,142 @@ bool PPhoreQuery::torsions_with_dirs_ok( BTT &torsion ,
 }
 
 // ***************************************************************************
-// put the details into an already initialised PVM buffer
-void PPhoreQuery::pack_into_pvm_buffer() {
+void PPhoreQuery::send_via_mpi( int dest_rank ) {
 
-  DACLIB::pack_strings_vector( point_types_ );
+  DACLIB::mpi_send_strings_vector( point_types_ , dest_rank );
 
   int ints_to_go[5];
-  float flts_to_go[5];
+  float flts_to_go[4];
 
-  int num_to_send = coords_.size();
-  pvm_pkint( &num_to_send , 1 , 1 );
-  for( int i = 0 ; i < num_to_send ; ++i ) {
-    ints_to_go[0] = coords_[i].get<0>() + 1; // count from 1, like it does in    
+  unsigned int num_to_send = coords_.size();
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
+  for( unsigned int i = 0 ; i < num_to_send ; ++i ) {
+    ints_to_go[0] = coords_[i].get<0>() + 1; // count from 1, like it does in
     flts_to_go[0] = coords_[i].get<1>();     // input file. Makes unpacking easier.
     flts_to_go[1] = coords_[i].get<2>();
     flts_to_go[2] = coords_[i].get<3>();
-    pvm_pkint( ints_to_go , 1 , 1 );
-    pvm_pkfloat( flts_to_go , 3 , 1 );
+    MPI_Send( ints_to_go , 1 , MPI_INT , dest_rank , 0 , MPI_COMM_WORLD );
+    MPI_Send( flts_to_go , 3 , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
   }
 
   num_to_send = distances_.size();
-  pvm_pkint( &num_to_send, 1 , 1 );
-  for( int i = 0 ; i < num_to_send ; ++i ) {
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
+  for( unsigned int i = 0 ; i < num_to_send ; ++i ) {
     ints_to_go[0] = distances_[i].get<0>() + 1;
     ints_to_go[1] = distances_[i].get<1>() + 1;
     flts_to_go[0] = distances_[i].get<2>();
     flts_to_go[1] = distances_[i].get<3>();
-    pvm_pkint( ints_to_go , 2 , 1 );
-    pvm_pkfloat( flts_to_go , 2 , 1 );
+    MPI_Send( ints_to_go , 2 , MPI_INT , dest_rank , 0 , MPI_COMM_WORLD );
+    MPI_Send( flts_to_go , 2 , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
   }
 
   num_to_send = angles_.size();
-  pvm_pkint( &num_to_send, 1 , 1 );
-  for( int i = 0 ; i < num_to_send ; ++i ) {
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
+  for( unsigned int i = 0 ; i < num_to_send ; ++i ) {
     ints_to_go[0] = angles_[i].get<0>() + 1;
     ints_to_go[1] = angles_[i].get<1>() + 1;
     ints_to_go[2] = angles_[i].get<2>() + 1;
     flts_to_go[0] = angles_[i].get<3>();
     flts_to_go[1] = angles_[i].get<4>();
-    pvm_pkint( ints_to_go , 3 , 1 );
-    pvm_pkfloat( flts_to_go , 2 , 1 );
+    MPI_Send( ints_to_go , 3 , MPI_INT , dest_rank , 0 , MPI_COMM_WORLD );
+    MPI_Send( flts_to_go , 2 , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
   }
 
   num_to_send = torsions_.size();
-  pvm_pkint( &num_to_send, 1 , 1 );
-  for( int i = 0 ; i < num_to_send ; ++i ) {
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
+  for( unsigned int i = 0 ; i < num_to_send ; ++i ) {
     ints_to_go[0] = torsions_[i].get<0>() + 1;
     ints_to_go[1] = torsions_[i].get<1>() + 1;
     ints_to_go[2] = torsions_[i].get<2>() + 1;
     ints_to_go[3] = torsions_[i].get<3>() + 1;
     flts_to_go[0] = torsions_[i].get<4>();
     flts_to_go[1] = torsions_[i].get<5>();
-    pvm_pkint( ints_to_go , 4 , 1 );
-    pvm_pkfloat( flts_to_go , 2 , 1 );
+    MPI_Send( ints_to_go , 4 , MPI_INT , dest_rank , 0 , MPI_COMM_WORLD );
+    MPI_Send( flts_to_go , 2 , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
   }
 
   num_to_send = hard_exc_vols_.size();
-  pvm_pkint( &num_to_send, 1 , 1 );
-  for( int i = 0 ; i < num_to_send ; ++i ) {
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
+  for( unsigned int i = 0 ; i < num_to_send ; ++i ) {
     flts_to_go[0] = hard_exc_vols_[i].get<0>();
     flts_to_go[1] = hard_exc_vols_[i].get<1>();
     flts_to_go[2] = hard_exc_vols_[i].get<2>();
     flts_to_go[3] = hard_exc_vols_[i].get<3>();
-    pvm_pkfloat( flts_to_go , 4 , 1 );
+    MPI_Send( flts_to_go , 4 , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
   }
 
   num_to_send = soft_exc_vols_.size();
-  pvm_pkint( &num_to_send, 1 , 1 );
-  for( int i = 0 ; i < num_to_send ; ++i ) {
+  MPI_Send( &num_to_send , 1 , MPI_UNSIGNED , dest_rank , 0 , MPI_COMM_WORLD );
+  for( unsigned int i = 0 ; i < num_to_send ; ++i ) {
     flts_to_go[0] = soft_exc_vols_[i].get<0>();
     flts_to_go[1] = soft_exc_vols_[i].get<1>();
     flts_to_go[2] = soft_exc_vols_[i].get<2>();
     flts_to_go[3] = soft_exc_vols_[i].get<3>();
-    pvm_pkfloat( flts_to_go , 4 , 1 );
+    MPI_Send( flts_to_go , 4 , MPI_FLOAT , dest_rank , 0 , MPI_COMM_WORLD );
   }
 
 }
 
 // ***************************************************************************
-void PPhoreQuery::unpack_from_pvm_buffer() {
+void PPhoreQuery::rec_via_mpi( int source_rank ) {
 
   clear_data();
-  DACLIB::unpack_strings_vector( point_types_ );
+  DACLIB::mpi_rec_strings_vector( source_rank , point_types_ );
 
   int ints_in[5];
-  float flts_in[5];
-  int num_to_rec;
+  float flts_in[4];
+  unsigned int num_to_rec;
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
-  for( int i = 0 ; i < num_to_rec ; ++i ) {
-    pvm_upkint( ints_in , 1 , 1 );
-    pvm_upkfloat( flts_in , 3 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD ,
+            MPI_STATUS_IGNORE );
+  for( unsigned int i = 0 ; i < num_to_rec ; ++i ) {
+    MPI_Recv( &ints_in , 1 , MPI_INT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+    MPI_Recv( &flts_in , 3 , MPI_FLOAT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
     coords_.push_back( boost::make_tuple( ints_in[0] , flts_in[0] ,
-					  flts_in[1] , flts_in[2] ) );
+        flts_in[1] , flts_in[2] ) );
   }
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
-  for( int i = 0 ; i < num_to_rec ; ++i ) {
-    pvm_upkint( ints_in , 2 , 1 );
-    pvm_upkfloat( flts_in , 2 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD ,
+            MPI_STATUS_IGNORE );
+  for( unsigned int i = 0 ; i < num_to_rec ; ++i ) {
+    MPI_Recv( &ints_in , 2 , MPI_INT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+    MPI_Recv( &flts_in , 2 , MPI_FLOAT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
     distances_.push_back( boost::make_tuple( ints_in[0] , ints_in[1] ,
-					     flts_in[0] , flts_in[1] ) );
+        flts_in[0] , flts_in[1] ) );
   }
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
-  for( int i = 0 ; i < num_to_rec ; ++i ) {
-    pvm_upkint( ints_in , 3 , 1 );
-    pvm_upkfloat( flts_in , 2 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD ,
+            MPI_STATUS_IGNORE );
+  for( unsigned int i = 0 ; i < num_to_rec ; ++i ) {
+    MPI_Recv( &ints_in , 3 , MPI_INT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+    MPI_Recv( &flts_in , 2 , MPI_FLOAT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
     angles_.push_back( boost::make_tuple( ints_in[0] , ints_in[1] ,
-					  ints_in[2] ,
-					  flts_in[0] , flts_in[1] ) );
+        ints_in[2] , flts_in[0] , flts_in[1] ) );
   }
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
-  for( int i = 0 ; i < num_to_rec ; ++i ) {
-    pvm_upkint( ints_in , 4 , 1 );
-    pvm_upkfloat( flts_in , 2 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD ,
+            MPI_STATUS_IGNORE );
+  for( unsigned int i = 0 ; i < num_to_rec ; ++i ) {
+    MPI_Recv( &ints_in , 4 , MPI_INT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+    MPI_Recv( &flts_in , 2 , MPI_FLOAT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
     torsions_.push_back( boost::make_tuple( ints_in[0] , ints_in[1] ,
-					    ints_in[2] , ints_in[3] ,
-					    flts_in[0] , flts_in[1] ) );
+        ints_in[2] , ints_in[3] , flts_in[0] , flts_in[1] ) );
   }
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
-  for( int i = 0 ; i < num_to_rec ; ++i ) {
-    pvm_upkfloat( flts_in , 4 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD ,
+            MPI_STATUS_IGNORE );
+  for( unsigned int i = 0 ; i < num_to_rec ; ++i ) {
+    MPI_Recv( &flts_in , 4 , MPI_FLOAT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
     hard_exc_vols_.push_back( boost::make_tuple( flts_in[0] , flts_in[1] ,
-						 flts_in[2] , flts_in[3] ) );
+        flts_in[2] , flts_in[3] ) );
   }
 
-  pvm_upkint( &num_to_rec , 1 , 1 );
-  for( int i = 0 ; i < num_to_rec ; ++i ) {
-    pvm_upkfloat( flts_in , 4 , 1 );
+  MPI_Recv( &num_to_rec , 1 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD ,
+            MPI_STATUS_IGNORE );
+  for( unsigned int i = 0 ; i < num_to_rec ; ++i ) {
+    MPI_Recv( &flts_in , 4 , MPI_FLOAT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
     soft_exc_vols_.push_back( boost::make_tuple( flts_in[0] , flts_in[1] ,
-						 flts_in[2] , flts_in[3] ) );
+        flts_in[2] , flts_in[3] ) );
   }
 
   verify_query_details();

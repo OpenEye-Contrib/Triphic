@@ -1,6 +1,6 @@
 //
 // file PluralitySettings.cc
-// Dave Cosgrove
+// David Cosgrove
 // 24th September 2007
 //
 
@@ -9,7 +9,7 @@
 #include <fstream>
 #include <iostream>
 
-#include <pvm3.h>
+#include <mpi.h>
 
 #include <boost/program_options/cmdline.hpp>
 #include <boost/program_options/options_description.hpp>
@@ -20,13 +20,11 @@ using namespace std;
 namespace po = boost::program_options;
 
 namespace DACLIB {
-  // In pvm_string_subs.cc
-  // pack a C++ string into a pvm buffer
-  void pack_string( const string &str );
-  // unpack a C++ string from pvm buffer
-  void unpack_string( string &str );
-  void pack_strings_vector( const vector<string> &strs );
-  void unpack_strings_vector( vector<string> &strs );
+// In mpi_string_subs.cc
+void mpi_send_string( const string &str , int dest_rank );
+void mpi_send_strings_vector( const vector<string> &strs , int dest_rank );
+void mpi_rec_string( int source_rank , string &str );
+void mpi_rec_strings_vector( int source_rank , vector<string> &strs );
 }
 
 // ***********************************************************************
@@ -100,35 +98,35 @@ bool PluralitySettings::set_hits_to_output_from_string() const {
 }
 
 // **************************************************************************
-void PluralitySettings::pack_contents_into_pvm_buffer() {
+void PluralitySettings::send_contents_via_mpi( int dest_slave ) {
 
-  DACLIB::pack_string( pphore_file_ );
-  DACLIB::pack_strings_vector( db_files_ );
-  DACLIB::pack_string( smarts_file_ );
-  DACLIB::pack_string( points_file_ );
-  DACLIB::pack_string( protein_file_ );
-  DACLIB::pack_string( subset_file_ );
-  DACLIB::pack_string( not_smarts_file_ );
-  DACLIB::pack_strings_vector( grid_vol_files_ );
+  DACLIB::mpi_send_string( pphore_file_ , dest_slave );
+  DACLIB::mpi_send_strings_vector( db_files_ , dest_slave );
+  DACLIB::mpi_send_string( smarts_file_ , dest_slave );
+  DACLIB::mpi_send_string( points_file_ , dest_slave );
+  DACLIB::mpi_send_string( protein_file_ , dest_slave );
+  DACLIB::mpi_send_string( subset_file_ , dest_slave );
+  DACLIB::mpi_send_string( not_smarts_file_ , dest_slave );
+  DACLIB::mpi_send_strings_vector( grid_vol_files_ , dest_slave );
   int i = hits_to_output_;
-  pvm_pkint( &i , 1 ,1 );
+  MPI_Send( &i , 1 , MPI_INT , dest_slave , 0 , MPI_COMM_WORLD );
 
 }
 
 // **************************************************************************
-void PluralitySettings::unpack_contents_from_pvm_buffer() {
+void PluralitySettings::receive_contents_via_mpi() {
 
-  DACLIB::unpack_string( pphore_file_ );
-  DACLIB::unpack_strings_vector( db_files_ );
-  DACLIB::unpack_string( smarts_file_ );
-  DACLIB::unpack_string( points_file_ );
-  DACLIB::unpack_string( protein_file_ );
-  DACLIB::unpack_string( subset_file_ );
-  DACLIB::unpack_string( not_smarts_file_ );
-  DACLIB::unpack_strings_vector( grid_vol_files_ );
+  DACLIB::mpi_rec_string( 0 , pphore_file_ );
+  DACLIB::mpi_rec_strings_vector( 0 , db_files_ );
+  DACLIB::mpi_rec_string( 0 , smarts_file_ );
+  DACLIB::mpi_rec_string( 0 , points_file_ );
+  DACLIB::mpi_rec_string( 0 , protein_file_ );
+  DACLIB::mpi_rec_string( 0 , subset_file_ );
+  DACLIB::mpi_rec_string( 0 , not_smarts_file_ );
+  DACLIB::mpi_rec_strings_vector( 0 , grid_vol_files_ );
 
   int i;
-  pvm_upkint( &i , 1 , 1 );
+  MPI_Recv( &i , 1 , MPI_INT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   hits_to_output_ = HITS_TO_OUTPUT( i );
 
 }
