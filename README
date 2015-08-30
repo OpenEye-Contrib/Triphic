@@ -9,12 +9,10 @@ Loob creates 3D pharmacophore fingerprints for a database of
 molecules. 
 
 To build it, use the CMakeLists.txt file in the src directory. It
-requires the following environment variables to point to relevant
-places:
+requires the following environment variable to point to relevant
+place:
 
 OE_DIR - the top level of an OEChem distribution
-BOOST - the location of a recent (>1.48) build of the Boost libraries
-PVM_ROOT - the location of PVM (>3.4.3)
 
 Then cd to src and do something like:
 mkdir dev-build
@@ -22,14 +20,31 @@ cd dev-build
 cmake -DCMAKE_BUILD_TYPE=DEBUG ..
 make
 
-If all goes to plan, this will make a directory src/exe_DEBUG with the
-executables in it.
+If all goes to plan, this will make a directory src/../exe_DEBUG with the
+executables in it. These will have debugging information in them.
+
+For a release version:
+mkdir prod-build
+cd prod-build
+cmake -DCMAKE_BUILD_TYPE=RELEASE ..
+make
+
+and you'll get stuff in src/../exe_RELEASE which should have full
+compiler optimisation applied.
+
+If you're not wanting to use the system-supplied Boost distribution in
+/usr/include then set BOOST_ROOT to point to the location of a recent
+(>1.48) build of the Boost libraries.  On my Centos 6.5 machine, the
+system boost is 1.41 which isn't good enough. You will also probably
+need to use '-DBoost_NO_BOOST_CMAKE=TRUE' when running cmake:
+
+cmake -DCMAKE_BUILD_TYPE=RELEASE -DBoost_NO_BOOST_CMAKE=TRUE ..
 
 See the docs directory for instructions on running the program, and
 test_dir for some useful example files.
 
 David Cosgrove
 AstraZeneca
-23rd April 2015
+28th August 2015
 
 davidacosgroveaz@gmail.com
