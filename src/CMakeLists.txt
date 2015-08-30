@@ -16,7 +16,12 @@ find_package(OEToolkits COMPONENTS oeszybki oeff oeieff oeamber oequacpac
   oespicoli oesheffield oemmff oemolpotential oeopt oebio oezap
   oegrid oefizzchem oedepict oechem oesystem oeplatform oeiupac oeshape
   oeomega2)
-find_package(MyBoost COMPONENTS program_options regex filesystem system REQUIRED)
+
+set(Boost_USE_STATIC_LIBS ON)
+find_package(Boost REQUIRED COMPONENTS program_options regex filesystem system)
+message( "Boost include dir : ${Boost_INCLUDE_DIRS}" )
+message( "Boost version : ${Boost_MAJOR_VERSION}.${Boost_MINOR_VERSION}.${Boost_SUBMINOR_VERSION}" )
+
 find_package(MPI REQUIRED)
 
 set(CMAKE_CXX_COMPILE_FLAGS ${CMAKE_CXX_COMPILE_FLAGS} ${MPI_COMPILE_FLAGS})
@@ -28,7 +33,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_FILE_OFFSET_BITS=64 -ffas
 #set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -pg" )
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -D_FILE_OFFSET_BITS=64 -fomit-frame-pointer -ffast-math -Wall -mssse3 -msse2" )
 
-include_directories(${OEToolkits_INCLUDE_DIRS} ${BOOST_INCLUDE_DIR} ${MPI_INCLUDE_PATH})
+include_directories(${OEToolkits_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${MPI_INCLUDE_PATH})
 
 #############################################################################
 ## build triphic
@@ -109,7 +114,7 @@ set(TRIPHIC_DACLIB_INCS stddefs.H
 add_executable(triphic ${TRIPHIC_SRCS} ${TRIPHIC_DACLIB_SRCS}
   ${TRIPHIC_INCS} ${TRIPHIC_DACLIB_INCS})
 target_link_libraries(triphic ${LIBS} ${OEToolkits_LIBRARIES}
-  ${BOOST_LIBRARIES} ${MPI_LIBRARIES} z pthread)
+  ${Boost_LIBRARIES} ${MPI_LIBRARIES} z pthread)
 
 #############################################################################
 ## build loob
@@ -150,7 +155,7 @@ set(LOOB_DACLIB_INCS stddefs.H
 add_executable(loob ${LOOB_SRCS} ${LOOB_DACLIB_SRCS}
  ${LOOB_INCS} ${LOOB_DACLIB_INCS})
 target_link_libraries(loob ${LIBS} ${OEToolkits_LIBRARIES}
- ${BOOST_LIBRARIES} z pthread)
+ ${Boost_LIBRARIES} z pthread)
 
 #############################################################################
 ## build plurality
@@ -211,5 +216,5 @@ set(PLURALITY_DACLIB_INCS DiamondOverlay.H
 add_executable(plurality ${PLURALITY_SRCS} ${PLURALITY_DACLIB_SRCS}
  ${PLURALITY_INCS} ${PLURALITY_DACLIB_INCS})
 target_link_libraries(plurality ${LIBS} ${OEToolkits_LIBRARIES}
- ${BOOST_LIBRARIES} ${MPI_LIBRARIES} z pthread)
+ ${Boost_LIBRARIES} ${MPI_LIBRARIES} z pthread)
 
