@@ -14,6 +14,9 @@
 
 #include <sys/param.h>
 #include <cstdlib>
+#include <unistd.h>
+
+#include <boost/filesystem.hpp>
 
 using namespace std;
 
@@ -24,22 +27,6 @@ void send_environment_var_to_mpi_slave( const string &var_name ,
 // In mpi_string_subs.cc
 void mpi_send_string( const string &str , int dest_rank );
 void mpi_rec_string( int source_rank , string &str );
-}
-
-// ********************************************************************
-// spell from t'Interweb
-string getcwd(){
-
-  char *buffer = new char[MAXPATHLEN];
-  getcwd(buffer,MAXPATHLEN);
-  if(buffer != NULL){
-    string ret(buffer);
-    delete[] buffer;
-    return ret;
-  } else {
-    return string();
-  }
-
 }
 
 // ********************************************************************
@@ -58,7 +45,7 @@ void send_openeye_license_to_slaves( int num_slaves ) {
 // ********************************************************************
 void send_cwd_to_slaves( int num_slaves ) {
 
-  string cwd = getcwd();
+  string cwd = boost::filesystem::current_path().string();
   if( cwd.length() ) {
     string msg( "New_CWD" );
     for( int i = 1 ; i < num_slaves ; ++i ) {
@@ -84,7 +71,7 @@ void receive_new_cwd() {
 
   string new_cwd;
   DACLIB::mpi_rec_string( 0 , new_cwd );
-  chdir( new_cwd.c_str() );
+  boost::filesystem::current_path( new_cwd );
 
 }
 
