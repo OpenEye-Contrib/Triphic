@@ -1,7 +1,7 @@
 # Points file
 Donor AllDon
 Acceptor AllAcc
-RING_NORMAL_POINTS aromatic
+RING_NORMAL_POINTS Aromatic
 Aromatic   AromFive AromSix
 hydrophobic ITMOC_ALO
 LP_VECTOR_POINTS Acceptor
