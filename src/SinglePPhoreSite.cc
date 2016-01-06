@@ -30,15 +30,13 @@ SinglePPhoreSite::SinglePPhoreSite( const double cds[3] , const double dir[3] , 
 				    const string &ts , const string &lbl ,
 				    bool use_dir , int num_atoms ,
 				    const int *atoms ,
-				    const string &parent_mol_name ) :
-  BasePPhoreSite( cds , dir , tc , ts , lbl , use_dir ) {
+				    const string &pmn ) :
+  BasePPhoreSite( cds , dir , tc , ts , lbl , use_dir ) , parent_mol_name_( pmn ) ,
+  num_site_atoms_( 0 ) {
 
   if( num_atoms > MAX_SITE_ATOMS )
     throw( MAX_SITE_ATOMS );
 
-  parent_mol_name_ = parent_mol_name;
-  
-  num_site_atoms_ = num_atoms;
   copy( atoms , atoms + num_atoms , site_atoms_ );
   
 }
@@ -48,13 +46,10 @@ SinglePPhoreSite::SinglePPhoreSite( const double cds[3] , const double dir[3] , 
 // throw an exception.
 SinglePPhoreSite::SinglePPhoreSite( const double cds[3] , const double dir[3] , int tc ,
 				    const string &ts , const string &lbl ,
-				    bool use_dir ,
-				    const string &parent_mol_name ) :
-  BasePPhoreSite( cds , dir , tc , ts , lbl , use_dir ) {
+				    bool use_dir , const string &pmn ) :
+  BasePPhoreSite( cds , dir , tc , ts , lbl , use_dir ) , parent_mol_name_( pmn ) ,
+  num_site_atoms_( 0 ) {
 
-  parent_mol_name_ = parent_mol_name;  
-  num_site_atoms_ = 0;
-  
 }
 
 // ****************************************************************************
@@ -193,7 +188,7 @@ float calculate_site_rms( const vector<BasePPhoreSite *> &sites1 ,
 
 // **************************************************************************
 float calculate_site_rms( const vector<BasePPhoreSite *> &sites1 ,
-                          const vector<shared_ptr<SinglePPhoreSite> > &sites2 ,
+                          const vector<boost::shared_ptr<SinglePPhoreSite> > &sites2 ,
                           const vector<int> &pairs ) {
 
   float rms = 0.0F;
@@ -255,7 +250,7 @@ void overlay( vector<boost::shared_ptr<SinglePPhoreSite> > &sites , const Overla
 // tolorance. The sites will already have been overlaid.
 bool confirm_site_vectors( const vector<int> &clique ,
                            const vector<BasePPhoreSite *> &query_sites ,
-                           vector<shared_ptr<SinglePPhoreSite> > &target_sites ,
+                           vector<boost::shared_ptr<SinglePPhoreSite> > &target_sites ,
                            bool check_ring_norms , float ring_norm_tol ,
                            bool check_h_vectors , float h_vector_tol ,
                            bool check_lps , float lp_tol ) {
@@ -341,9 +336,9 @@ bool confirm_dir_vectors( const BasePPhoreSite &site1 ,
       // might be flippable
       if( site2.get_flippable() ) {
         site2.flip();
-        float dotp = DACLIB::dot_product( site1.direction( i ) ,
-                                          site2.direction( j ) );
-        if( dotp > tol ) {
+        float dotp2 = DACLIB::dot_product( site1.direction( i ) ,
+					   site2.direction( j ) );
+        if( dotp2 > tol ) {
           return true; // got a match, can return straight away
         }
       }

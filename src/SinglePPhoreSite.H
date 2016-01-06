@@ -45,14 +45,13 @@ public :
   // exception if num_atoms is too large, giving the maximum number
   SinglePPhoreSite( const double cds[3] , const double dir[3] , int tc , const std::string &ts ,
   const std::string &lbl , bool use_dir , int num_atoms ,
-  const int *atoms , const std::string &parent_mol_name );
+  const int *atoms , const std::string &pmn );
   // this version builds the SinglePPhoreSite without the atoms and therefore won't
   // throw an exception.
   SinglePPhoreSite( const double cds[3] , const double dir[3] , int tc ,
-  const std::string &ts ,
-  const std::string &lbl , bool use_dir ,
-  const std::string &parent_mol_name );
-  SinglePPhoreSite( const SinglePPhoreSite &c ) { copy_data( c ); };
+  const std::string &ts , const std::string &lbl , bool use_dir ,
+  const std::string &pmn );
+  SinglePPhoreSite( const SinglePPhoreSite &c ) : BasePPhoreSite( c ) { copy_data( c ); };
 
   virtual ~SinglePPhoreSite() {}
 

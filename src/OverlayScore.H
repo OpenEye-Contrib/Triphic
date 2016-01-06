@@ -156,7 +156,7 @@ public :
   OverlayScore *make_copy_no_sims();
 
   // increment the number of similar overlays.
-  void add_similar( OverlayScore *sim );
+  void add_similar();
   // copy the similars of sims to this, remove them from sims, and add sims to this
   void add_similars( OverlayScore *sims );
   // clear the similars
@@ -253,24 +253,23 @@ public :
   // calculate the hphobe, donor and acceptor scores. The target volume grid is
   // needed for calculating the occlusion of virtual donor and acceptor sites.
   void calc_robins_scores( const std::vector<SinglePPhoreSite *> &fixed_score_sites ,
-                           const std::vector<SinglePPhoreSite *> &moving_sites ,
                            boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid );
   // use the reference overlay to make a single number for Robin's Pareto ranking
   float calc_robins_pareto_score( const OverlayScore &os ) const;
   // use the reference overlay to make a single number for Overall Pareto ranking
   float calc_overall_pareto_score( const OverlayScore &os ) const;
 
-  void calc_directional_hphobe_score( const std::vector<std::vector<SinglePPhoreSite *> > &sites );
-  void calc_hbond_score( const std::vector<std::vector<SinglePPhoreSite *> > &sites ,
+  void calc_directional_hphobe_score( const std::vector<std::vector<SinglePPhoreSite *> > &other_sites );
+  void calc_hbond_score( const std::vector<std::vector<SinglePPhoreSite *> > &other_sites ,
                          boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid );
   // cluster sites of given type not caring about whether their possession of a
   // direction. Only 1 site in each cluster from each molecule
   void cluster_sites( const std::string &site_type , float thresh ,
-                      const std::vector<std::vector<SinglePPhoreSite *> > &sites ,
+                      const std::vector<std::vector<SinglePPhoreSite *> > &other_sites ,
                       std::vector<SiteCluster> &clusters );
   // make near-neighbour lists of sites with type string site_type
   void make_site_nnls( const std::string &site_type , float thresh ,
-                       const std::vector<std::vector<SinglePPhoreSite *> > &sites ,
+                       const std::vector<std::vector<SinglePPhoreSite *> > &other_sites ,
                        std::vector<SiteCluster> &nnls );
   // calculate the sum of square distances of the cluster/nnl
   void calculate_nnl_dists( SiteCluster &nnl );
@@ -306,16 +305,15 @@ public :
   // make new BasePPhoreSites at the positions of the virtual sites in sites
   // so we can re-use the sites clustering functions to cluster the virtual
   // sites also
-  void extract_virtual_sites( const std::vector<ClusterMember> &sites ,
+  void extract_virtual_sites( const std::vector<ClusterMember> &other_sites ,
                               std::vector<std::vector<SinglePPhoreSite *> > &virt_sites );
-  void calc_cluster_centroid( const SiteCluster &sites ,
-                              double clus_centroid[3] );
+  void calc_cluster_centroid( const SiteCluster &other_sites ,
+			      double clus_centroid[3] );
 
-  float mean_square_distance_to_centroid( const std::vector<ClusterMember> &sites );
-  float mean_normal_cosine( const std::vector<ClusterMember> &sites );
+  float mean_square_distance_to_centroid( const std::vector<ClusterMember> &other_sites );
+  float mean_normal_cosine( const std::vector<ClusterMember> &other_sites );
   void write_scores_to_stream( std::ostream &s , const std::string &sep ) const;
-  void write_scores_headers_to_stream( std::ostream &s ,
-                                       const std::string &sep );
+  void write_scores_headers_to_stream( std::ostream &s , const std::string &sep );
   // turn the scores into a set of string pairs, the first being the label,
   // the second being the value.
   virtual void put_scores_in_vector( std::vector<std::pair<std::string,std::string> > &scores ) const;

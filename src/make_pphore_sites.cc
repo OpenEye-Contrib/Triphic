@@ -1342,8 +1342,7 @@ void make_dir_virtual_points( SinglePPhoreSite &site ,
 }
 
 // ************************************************************************
-void add_virtual_acceptor_sites( OEMolBase &mol , OEAtomBase *target_atom ,
-                                 SinglePPhoreSite &site ) {
+void add_virtual_acceptor_sites( SinglePPhoreSite &site ) {
 
   if( site.get_twiddlable() ) {
     // if the site is twiddlable, we need 12 virtual points in a cone
@@ -1360,8 +1359,7 @@ void add_virtual_acceptor_sites( OEMolBase &mol , OEAtomBase *target_atom ,
 }
 
 // ************************************************************************
-void add_virtual_donor_sites( OEMolBase &mol , OEAtomBase *target_atom ,
-                              SinglePPhoreSite &site ) {
+void add_virtual_donor_sites( SinglePPhoreSite &site ) {
 
   if( site.get_twiddlable() ) {
     // if the site is twiddlable, we need 12 virtual points in a cone
@@ -1436,7 +1434,7 @@ void create_pphore_sites_with_dir( GtplDefs::DIRS_TYPE dirs_type ,
                1 == target_atom->GetHvyDegree() ) {
       add_3_tet_h_vectors_to_nplus_site( mol , target_atom , *init_site );
     }
-    add_virtual_donor_sites( mol , target_atom , *init_site );
+    add_virtual_donor_sites( *init_site );
   } else if( GtplDefs::LP_VECTOR == dirs_type ) {
     if( OEElemNo::O == target_atom->GetAtomicNum() ||
         OEElemNo::S == target_atom->GetAtomicNum() ) {
@@ -1445,7 +1443,7 @@ void create_pphore_sites_with_dir( GtplDefs::DIRS_TYPE dirs_type ,
                OEElemNo::P == target_atom->GetAtomicNum() ) {
       add_lp_vectors_to_n_site( mol , target_atom , *init_site );
     }
-    add_virtual_acceptor_sites( mol , target_atom , *init_site );
+    add_virtual_acceptor_sites( *init_site );
   }
 
 }
@@ -1919,14 +1917,14 @@ void make_ring_itmoc_hphobe_sites( const string &label , int type_num ,
         if( aromatic_ring ) {
           for( nbour = matched_ats[j]->GetAtoms() ; nbour ; ++nbour ) {
             if( 9 == nbour->GetAtomicNum() ) {
-              int seq_num = nbour->GetIdx();
-              ring_ats.push_back( seq_num );
+              int seq_num2 = nbour->GetIdx();
+              ring_ats.push_back( seq_num2 );
               matched_ats.push_back( nbour );
               mol.GetCoords( nbour , at_cds );
               ring_at_cds.push_back( at_cds[0] );
               ring_at_cds.push_back( at_cds[1] );
               ring_at_cds.push_back( at_cds[2] );
-              h_sum += h_factors[seq_num];
+              h_sum += h_factors[seq_num2];
             }
           }
         }

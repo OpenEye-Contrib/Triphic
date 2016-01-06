@@ -72,13 +72,13 @@ void OverlayTrans::overlay( int num_points , float *cds ) const {
   }
 
   for( i = num_points , t = cds ; i ; i-- ) {
-    float cds[3];
-    cds[0] = rot_[0][0] * t[0] + rot_[0][1] * t[1] + rot_[0][2] * t[2];
-    cds[1] = rot_[1][0] * t[0] + rot_[1][1] * t[1] + rot_[1][2] * t[2];
-    cds[2] = rot_[2][0] * t[0] + rot_[2][1] * t[1] + rot_[2][2] * t[2];
-    *t = cds[0] + trans2_[0]; t++;
-    *t = cds[1] + trans2_[1]; t++;
-    *t = cds[2] + trans2_[2]; t++;
+    float cds1[3];
+    cds1[0] = rot_[0][0] * t[0] + rot_[0][1] * t[1] + rot_[0][2] * t[2];
+    cds1[1] = rot_[1][0] * t[0] + rot_[1][1] * t[1] + rot_[1][2] * t[2];
+    cds1[2] = rot_[2][0] * t[0] + rot_[2][1] * t[1] + rot_[2][2] * t[2];
+    *t = cds1[0] + trans2_[0]; t++;
+    *t = cds1[1] + trans2_[1]; t++;
+    *t = cds1[2] + trans2_[2]; t++;
   }
 
 }

@@ -119,7 +119,7 @@ VolumeGrid *prepare_mol_grid( OEMol *mol , int conf_num ) {
 // prepare a counts grid containing multiple molecules that will be used for
 // more than one shape tanimoto calculation.
 void prepare_multi_mol_grids( vector<OEMolBase *> &mols ,
-                              shared_ptr<VolumeGrid> &solid_grid ) {
+                              boost::shared_ptr<VolumeGrid> &solid_grid ) {
 
   vector<VolumeGrid *> grids;
   for( int i = 0 , is = mols.size() ; i < is ; ++i )

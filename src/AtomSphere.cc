@@ -17,9 +17,8 @@ namespace DACLIB {
 float AtomSphere::surface_thickness_ = 0.5F;
 
 // ********************************************************************************
-AtomSphere::AtomSphere( int atomic_num , int step_ratio ,
-			float par_grid_spacing , float radius ) :
-  atomic_num_( atomic_num ) , step_ratio_( step_ratio ) , radius_( radius ) ,
+AtomSphere::AtomSphere( int an , int sr , float par_grid_spacing , float radius ) :
+  atomic_num_( an ) , step_ratio_( sr ) , radius_( radius ) ,
   grid_( 0 ) {
 
   float outer_rad = radius_ + surface_thickness_ / 2.0F;

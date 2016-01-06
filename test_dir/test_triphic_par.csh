@@ -8,12 +8,12 @@
 mpirun -np 4 ../exe_DEBUG/triphic \
     -Q 2Q61_lig_1.mol2 \
     -D bit_of_chembl_20.oeb.gz \
-    -O r.sdf \
+    -O triphic_test_par_out1.sdf \
     --protein 2Q61_prot.pdb
 
 mpirun -np 4 ../exe_DEBUG/triphic \
     -Q 2Q61_lig_1.mol2 \
     -D chembl_20_first_100_ions_and_tauts.smi \
-    -O r.sdf \
+    -O triphic_test_par_out2.sdf \
     --protein 2Q61_prot.pdb \
     --use-omega --use-flipper

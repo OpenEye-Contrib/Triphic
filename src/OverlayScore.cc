@@ -49,7 +49,7 @@ OEMolBase *get_given_oeconf( OEMol &mol , int conf_num ,
 void overlay_oemolbase( OEMolBase &mol , const OverlayTrans &ot );
 
 GtplDefs::SCORE_METHOD OverlayScore::score_method_ = GtplDefs::RMS_AND_SIZE;
-shared_ptr<OverlayScore> OverlayScore::ref_ov_;
+boost::shared_ptr<OverlayScore> OverlayScore::ref_ov_;
 
 // ******************************************************************************
 OverlayScore::OverlayScore() : fixed_mol_name_( string( "Query" ) ) ,
@@ -75,10 +75,10 @@ OverlayScore::OverlayScore( const string &fix_mol_name ,
                             const vector<SinglePPhoreSite *> &fixed_score_sites ,
                             const vector<SinglePPhoreSite *> &moving_sites ,
                             OEMolBase &fixed_conf , OEMol &moving_mol ,
-                            shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ,
-                            shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
+                            boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ,
+                            boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                             const vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ,
-                            shared_ptr<OESzybki> &szybki,
+                            boost::shared_ptr<OESzybki> &szybki,
                             bool use_ring_norms_in_overlay ,
                             bool use_h_vectors_in_overlay ,
                             bool use_lps_in_overlay , bool do_overlay ) :
@@ -118,12 +118,12 @@ OverlayScore::OverlayScore( const string &fix_mol_name ,
   } else if( GtplDefs::GAUSS_SHAPE_TANI == get_score_method() ) {
     calc_gauss_shape_tanimoto( fixed_conf , *ov_conf_ );
   } else if( GtplDefs::ROBINS_SCORE_PARETO == get_score_method() ) {
-    calc_robins_scores( fixed_score_sites , moving_sites , fixed_solid_grid );
+    calc_robins_scores( fixed_score_sites , fixed_solid_grid );
   } else if( GtplDefs::OVERALL_SCORE_PARETO == get_score_method() ) {
     calc_volume_scores( ov_conf_.get() , fixed_solid_grid , protein_grid ,
                         score_vol_grids );
     calc_gauss_shape_tanimoto( fixed_conf , *ov_conf_ );
-    calc_robins_scores( fixed_score_sites , moving_sites , fixed_solid_grid );
+    calc_robins_scores( fixed_score_sites , fixed_solid_grid );
   }
 
 }
@@ -185,7 +185,7 @@ OverlayScore::OverlayScore( const string &str ) :
     grid_vols_.push_back( make_pair( grid_name , grid_vol ) );
   }
 
-  for( int i = 0 , is = 2 * num_sites_ ; i < is ; ++i ) {
+  for( int i = 0 ; i < 2 * num_sites_ ; ++i ) {
     iss >> site_nums_[i];
   }
 
@@ -220,7 +220,7 @@ OverlayScore::OverlayScore( const string &str ) :
 // a conformation, assumed to be the overlaid one associated with the scores,
 // a header line taken from a scores file and the separator string. It's
 // for restarting a job from an intermediate output set.
-OverlayScore::OverlayScore( shared_ptr<OEMolBase> &hc , const string &scores_line ,
+OverlayScore::OverlayScore( boost::shared_ptr<OEMolBase> &hc , const string &scores_line ,
                             const string &headers_line , const string sep ,
                             bool no_hit_conf_number ) {
 
@@ -313,9 +313,9 @@ void OverlayScore::copy_data( const OverlayScore &ov ) {
 }
 
 // ******************************************************************************
-void OverlayScore::calc_volume_scores( scoped_ptr<DACLIB::VolumeGrid> &mol_grid ,
-                                       shared_ptr<DACLIB::VolumeGrid> &target_solid_grid ,
-                                       shared_ptr<DACLIB::VolumeGrid> &protein_grid ) {
+void OverlayScore::calc_volume_scores( boost::scoped_ptr<DACLIB::VolumeGrid> &mol_grid ,
+                                       boost::shared_ptr<DACLIB::VolumeGrid> &target_solid_grid ,
+                                       boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ) {
 
   if( protein_grid ) {
     calc_protein_clash( mol_grid.get() , protein_grid.get() );
@@ -335,7 +335,7 @@ void OverlayScore::calc_volume_scores( scoped_ptr<DACLIB::VolumeGrid> &mol_grid 
 
 // ****************************************************************************
 // returns the final energy
-void OverlayScore::optimise_overlay( shared_ptr<OESzybki> &szybki ) {
+void OverlayScore::optimise_overlay( boost::shared_ptr<OESzybki> &szybki ) {
 
   using namespace OESystem;
   OESzybkiResults sr;
@@ -388,7 +388,7 @@ OverlayScore *OverlayScore::make_copy_no_sims() {
 
 // ******************************************************************************
 // increment num_sims_.
-void OverlayScore::add_similar( OverlayScore *sim ) {
+void OverlayScore::add_similar() {
 
   ++num_sims_; // count this sim
 
@@ -412,7 +412,7 @@ void OverlayScore::clear_similars() {
 // *************************************************************************
 void OverlayScore::set_ov_conf( OEMolBase *new_ov_conf ) {
 
-  ov_conf_ = shared_ptr<OEMolBase>( new_ov_conf );
+  ov_conf_ = boost::shared_ptr<OEMolBase>( new_ov_conf );
 
 }
 
@@ -428,7 +428,7 @@ void OverlayScore::set_ov_sites( std::vector<SinglePPhoreSite *> &new_ov_sites )
 
   ov_sites_.clear();
   for( int i = 0 , is = new_ov_sites.size() ; i < is ; ++i ) {
-    ov_sites_.push_back( shared_ptr<SinglePPhoreSite>( new_ov_sites[i] ) );
+    ov_sites_.push_back( boost::shared_ptr<SinglePPhoreSite>( new_ov_sites[i] ) );
   }
 
 }
@@ -449,7 +449,7 @@ void OverlayScore::calc_volume_scores( OEMolBase *mol ,
                                        boost::shared_ptr<DACLIB::VolumeGrid> &target_solid_grid ,
                                        boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ) {
 
-  scoped_ptr<DACLIB::VolumeGrid> g( DACLIB::prepare_mol_grid( mol ) );
+  boost::scoped_ptr<DACLIB::VolumeGrid> g( DACLIB::prepare_mol_grid( mol ) );
 
   calc_volume_scores( g , target_solid_grid , protein_grid );
 
@@ -461,7 +461,7 @@ void OverlayScore::calc_volume_scores( OEMolBase *mol ,
                                        boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                                        const vector<pair<string,DACLIB::VolumeGrid *> > &vol_grids ) {
 
-  scoped_ptr<DACLIB::VolumeGrid> g( DACLIB::prepare_mol_grid( mol ) );
+  boost::scoped_ptr<DACLIB::VolumeGrid> g( DACLIB::prepare_mol_grid( mol ) );
 
   calc_volume_scores( g , target_solid_grid , protein_grid );
 
@@ -498,7 +498,7 @@ void OverlayScore::calc_protein_clash( DACLIB::VolumeGrid *mol_grid ,
 void OverlayScore::overlay_mol_and_sites( const vector<BasePPhoreSite *> &fixed_sites ,
                                           const vector<SinglePPhoreSite *> &moving_sites ,
                                           OEMol &moving_mol ,
-                                          shared_ptr<OESzybki> &szybki,
+                                          boost::shared_ptr<OESzybki> &szybki,
                                           bool use_ring_norms_in_overlay ,
                                           bool use_h_vectors_in_overlay ,
                                           bool use_lps_in_overlay  ,
@@ -566,10 +566,10 @@ void OverlayScore::overlay_mol_and_sites( const vector<BasePPhoreSite *> &fixed_
     }
 
   } else {
-    ov_conf_ = shared_ptr<OEMolBase>( get_given_oeconf( moving_mol ,
+    ov_conf_ = boost::shared_ptr<OEMolBase>( get_given_oeconf( moving_mol ,
                                                         get_moving_conf() , false ) );
     for( int j = 0 , js = moving_sites.size() ; j < js ; ++j ) {
-      ov_sites_.push_back( shared_ptr<SinglePPhoreSite>( new SinglePPhoreSite( *moving_sites[j] ) ) );
+      ov_sites_.push_back( boost::shared_ptr<SinglePPhoreSite>( new SinglePPhoreSite( *moving_sites[j] ) ) );
     }
   }
 
@@ -589,7 +589,7 @@ void OverlayScore::overlay_sites( const vector<BasePPhoreSite *> &fixed_sites ,
   ov_sites_.clear();
 
   for( int j = 0 , js = moving_sites.size() ; j < js ; ++j ) {
-    ov_sites_.push_back( shared_ptr<SinglePPhoreSite>( new SinglePPhoreSite( *moving_sites[j] ) ) );
+    ov_sites_.push_back( boost::shared_ptr<SinglePPhoreSite>( new SinglePPhoreSite( *moving_sites[j] ) ) );
   }
 
   // in SinglePPhoreSite.cc
@@ -617,7 +617,7 @@ void OverlayScore::overlay_moving_conf( OEMol &target_mol ,
                                         const vector<BasePPhoreSite *> &fixed_sites ,
                                         const vector<SinglePPhoreSite *> &moving_sites ) {
 
-  ov_conf_ = shared_ptr<OEMolBase>( get_given_oeconf( target_mol ,
+  ov_conf_ = boost::shared_ptr<OEMolBase>( get_given_oeconf( target_mol ,
                                                       get_moving_conf() , false ) );
   if( !ov_conf_ ) {
     return;
@@ -711,23 +711,22 @@ void OverlayScore::calc_clip_score( vector<BasePPhoreSite *> &query_sites ,
 // calculate the hphobe, donor and acceptor scores. The target volume grid is
 // needed for calculating the occlusion of virtual donor and acceptor sites.
 void OverlayScore::calc_robins_scores( const vector<SinglePPhoreSite *> &fixed_score_sites ,
-                                       const vector<SinglePPhoreSite *> &moving_sites ,
-                                       shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ) {
+                                       boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ) {
 
   if( !fixed_solid_grid ) {
     return; // can't do Robin's scores as we need a volume for the occlusion part
   }
 
-  vector<vector<SinglePPhoreSite *> > sites;
-  sites.push_back( fixed_score_sites );
-  sites.push_back( vector<SinglePPhoreSite *>() );
+  vector<vector<SinglePPhoreSite *> > tmp_sites;
+  tmp_sites.push_back( fixed_score_sites );
+  tmp_sites.push_back( vector<SinglePPhoreSite *>() );
   transform( ov_sites_.begin() , ov_sites_.end() ,
-             inserter( sites.back() , sites.back().begin() ) ,
-             bind( &shared_ptr<SinglePPhoreSite>::get , _1 ) );
+             inserter( tmp_sites.back() , tmp_sites.back().begin() ) ,
+             bind( &boost::shared_ptr<SinglePPhoreSite>::get , _1 ) );
 
-  calc_directional_hphobe_score( sites );
-  calc_hbond_score( sites , fixed_solid_grid );
-  shared_ptr<DACLIB::VolumeGrid> dummy_grid;
+  calc_directional_hphobe_score( tmp_sites );
+  calc_hbond_score( tmp_sites , fixed_solid_grid );
+  boost::shared_ptr<DACLIB::VolumeGrid> dummy_grid;
   calc_volume_scores( ov_conf_.get() , fixed_solid_grid , dummy_grid );
   vol_score_ = total_vol_;
 
@@ -831,11 +830,11 @@ float OverlayScore::calc_overall_pareto_score( const OverlayScore &os ) const {
 }
 
 // ******************************************************************************
-void OverlayScore::calc_directional_hphobe_score( const vector<vector<SinglePPhoreSite *> > &sites ) {
+void OverlayScore::calc_directional_hphobe_score( const vector<vector<SinglePPhoreSite *> > &other_sites ) {
 
   vector<SiteCluster> clusters;
   // 1.5 is the distance threshold for the clustering.
-  cluster_sites( "Hydrophobe" , 1.5 , sites , clusters );
+  cluster_sites( "Hydrophobe" , 1.5 , other_sites , clusters );
 
   hphobe_score_ = score_hphobe_clusters( clusters );
 #ifdef NOTYET
@@ -845,18 +844,18 @@ void OverlayScore::calc_directional_hphobe_score( const vector<vector<SinglePPho
 }
 
 // ******************************************************************************
-void OverlayScore::calc_hbond_score( const vector<vector<SinglePPhoreSite *> > &sites ,
-                                     shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ) {
+void OverlayScore::calc_hbond_score( const vector<vector<SinglePPhoreSite *> > &other_sites ,
+                                     boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ) {
 
   vector<SiteCluster> donor_clusters;
   // 1.5 is the distance threshold for the clustering.
-  cluster_sites( "Donor" , 1.5 , sites , donor_clusters );
+  cluster_sites( "Donor" , 1.5 , other_sites , donor_clusters );
   vector<float> donor_scores;
   score_hbond_clusters( donor_clusters , fixed_solid_grid , "Donor" , donor_scores );
 
   vector<SiteCluster> acc_clusters;
   // 1.5 is the distance threshold for the clustering.
-  cluster_sites( "Acceptor" , 1.5 , sites , acc_clusters );
+  cluster_sites( "Acceptor" , 1.5 , other_sites , acc_clusters );
   vector<float> acc_scores;
   score_hbond_clusters( acc_clusters , fixed_solid_grid , "Acceptor" , acc_scores );
 
@@ -883,11 +882,11 @@ void OverlayScore::calc_hbond_score( const vector<vector<SinglePPhoreSite *> > &
 // cluster sites of given type not caring about whether their possession of a
 // direction. Only 1 site in each cluster from each molecule
 void OverlayScore::cluster_sites( const string &site_type , float thresh ,
-                                  const vector<vector<SinglePPhoreSite *> > &sites ,
+                                  const vector<vector<SinglePPhoreSite *> > &other_sites ,
                                   vector<SiteCluster> &clusters ) {
 
   vector<SiteCluster> nnls;
-  make_site_nnls( site_type , thresh , sites , nnls );
+  make_site_nnls( site_type , thresh , other_sites , nnls );
 
   cluster_nnls( nnls , clusters );
 
@@ -907,7 +906,7 @@ void OverlayScore::cluster_sites( const string &site_type , float thresh ,
 //*****************************************************************************
 // make near-neighbour lists of sites with type string site_type
 void OverlayScore::make_site_nnls( const string &site_type , float thresh ,
-                                   const vector<vector<SinglePPhoreSite *> > &sites ,
+                                   const vector<vector<SinglePPhoreSite *> > &other_sites ,
                                    vector<SiteCluster> &nnls ) {
 
   // cout << "make_site_nnls : " << site_type << endl;
@@ -918,36 +917,36 @@ void OverlayScore::make_site_nnls( const string &site_type , float thresh ,
   // distances from each site to all other sites, except those from the same
   // molecule, and keeping for each molecule the closest to the first site so
   // long as it's within the threshold
-  for( int i = 0 , is = sites.size() ; i < is ; ++i ) {
-    for( int j = 0 , js = sites[i].size() ; j < js ; ++j ) {
+  for( int i = 0 , is = other_sites.size() ; i < is ; ++i ) {
+    for( int j = 0 , js = other_sites[i].size() ; j < js ; ++j ) {
 #ifdef NOTYET
-      cout << sites[i][j]->get_type_string() << "XX" << site_type << "YY" << endl;
+      cout << other_sites[i][j]->get_type_string() << "XX" << site_type << "YY" << endl;
 #endif
-      if( !boost::iequals( sites[i][j]->get_type_string() , site_type ) ) {
+      if( !boost::iequals( other_sites[i][j]->get_type_string() , site_type ) ) {
        continue;
       }
 
-      // cout << "nnl for " << sites[i][j]->label() << endl;
+      // cout << "nnl for " << other_sites[i][j]->label() << endl;
       vector<ClusterMember> next_nnl;
-      next_nnl.push_back( make_pair( i , sites[i][j] ) );
-      for( int k = 0 , ks = sites.size() ; k < ks ; ++k ) {
+      next_nnl.push_back( make_pair( i , other_sites[i][j] ) );
+      for( int k = 0 , ks = other_sites.size() ; k < ks ; ++k ) {
         if( k == i ) {
          continue;
         }
         float nearest_dist = numeric_limits<float>::max();
         int nearest_site = -1;
-        for( int l = 0 , ls = sites[k].size() ; l < ls ; ++l ) {
-          if( !boost::iequals( sites[k][l]->get_type_string() , site_type ) ) {
+        for( int l = 0 , ls = other_sites[k].size() ; l < ls ; ++l ) {
+          if( !boost::iequals( other_sites[k][l]->get_type_string() , site_type ) ) {
             continue;
           }
-          float this_dist = sites[i][j]->square_distance( sites[k][l]->coords() );
+          float this_dist = other_sites[i][j]->square_distance( other_sites[k][l]->coords() );
           if( this_dist < nearest_dist ) {
             nearest_dist = this_dist;
             nearest_site = l;
           }
         }
         if( -1 != nearest_site && nearest_dist < thresh_sq ) {
-          next_nnl.push_back( make_pair( k ,  sites[k][nearest_site] ) );
+          next_nnl.push_back( make_pair( k ,  other_sites[k][nearest_site] ) );
         }
       }
       nnls.push_back( make_pair( -1.0F , next_nnl ) );
@@ -1104,7 +1103,7 @@ float OverlayScore::score_hphobe_clusters( const vector<SiteCluster> &clusters )
 
 //*****************************************************************************
 void OverlayScore::score_hbond_clusters( vector<SiteCluster> &clusters ,
-                                         shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ,
+                                         boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ,
                                          const string &hbond_type ,
                                          vector<float> &scores ) {
 
@@ -1141,7 +1140,7 @@ void OverlayScore::score_hbond_clusters( vector<SiteCluster> &clusters ,
 //*****************************************************************************
 float OverlayScore::calc_hbond_cluster_score( SiteCluster &cluster ,
                                               vector<SiteCluster> &virt_clusters ,
-                                              shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ) {
+                                              boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ) {
 
   if( virt_clusters.empty() ) {
     // this might be the sign of something serious, but it might just be that
@@ -1180,7 +1179,7 @@ float OverlayScore::calc_hbond_cluster_score( SiteCluster &cluster ,
 // is put at the top.
 float OverlayScore::calc_occlusion( const SiteCluster &atom_sites ,
                                     vector<SiteCluster> &virt_sites ,
-                                    shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ) {
+                                    boost::shared_ptr<DACLIB::VolumeGrid> &fixed_solid_grid ) {
 
   // the occlusion score is 0.1 if all points below occluded, 1 if none are
   static const float occ_incr = 0.9 / 4;
@@ -1348,23 +1347,23 @@ void OverlayScore::remove_don_acc_clusters( std::vector<SiteCluster> &donor_clus
 // make new BasePPhoreSites at the positions of the virtual sites in sites
 // so we can re-use the sites clustering functions to cluster the virtual
 // sites also
-void OverlayScore::extract_virtual_sites( const vector<ClusterMember> &sites ,
+void OverlayScore::extract_virtual_sites( const vector<ClusterMember> &other_sites ,
                                           vector<vector<SinglePPhoreSite *> > &virt_sites ) {
 
   double ddir[3];
-  for( int i = 0 , is = sites.size() ; i < is ; ++i ) {
+  for( int i = 0 , is = other_sites.size() ; i < is ; ++i ) {
 #ifdef NOTYET
-    cout << "Extract virtual sites for " << sites[i].second->get_full_name() << endl;
+    cout << "Extract virtual sites for " << other_sites[i].second->get_full_name() << endl;
 #endif
     virt_sites.push_back( vector<SinglePPhoreSite *>() );
-    const double *virt_site_cds = sites[i].second->virt_sites();
-    for( int j = 0 , js = sites[i].second->num_virt_sites() ; j < js ; ++j ) {
+    const double *virt_site_cds = other_sites[i].second->virt_sites();
+    for( int j = 0 , js = other_sites[i].second->num_virt_sites() ; j < js ; ++j ) {
       double vsite_cds[3];
-      vsite_cds[0] = sites[i].second->coords()[0] + virt_site_cds[3*j];
-      vsite_cds[1] = sites[i].second->coords()[1] + virt_site_cds[3*j+1];
-      vsite_cds[2] = sites[i].second->coords()[2] + virt_site_cds[3*j+2];
+      vsite_cds[0] = other_sites[i].second->coords()[0] + virt_site_cds[3*j];
+      vsite_cds[1] = other_sites[i].second->coords()[1] + virt_site_cds[3*j+1];
+      vsite_cds[2] = other_sites[i].second->coords()[2] + virt_site_cds[3*j+2];
       SinglePPhoreSite *vsite = new SinglePPhoreSite( vsite_cds ,
-          ddir , sites[i].second->get_type_code() , sites[i].second->get_type_string() ,
+          ddir , other_sites[i].second->get_type_code() , other_sites[i].second->get_type_string() ,
           "Virtual" , false , "No Molecule" );
       virt_sites.back().push_back( vsite );
     }
@@ -1373,18 +1372,18 @@ void OverlayScore::extract_virtual_sites( const vector<ClusterMember> &sites ,
 }
 
 //*****************************************************************************
-void OverlayScore::calc_cluster_centroid( const SiteCluster &sites ,
+void OverlayScore::calc_cluster_centroid( const SiteCluster &other_sites ,
                                           double clus_centroid[3] ) {
 
   clus_centroid[0] = clus_centroid[1] = clus_centroid[2] = 0.0;
 
-  for( int i = 0 , is = sites.second.size() ; i < is ; ++i ) {
-    clus_centroid[0] += sites.second[i].second->coords()[0];
-    clus_centroid[1] += sites.second[i].second->coords()[1];
-    clus_centroid[2] += sites.second[i].second->coords()[2];
+  for( int i = 0 , is = other_sites.second.size() ; i < is ; ++i ) {
+    clus_centroid[0] += other_sites.second[i].second->coords()[0];
+    clus_centroid[1] += other_sites.second[i].second->coords()[1];
+    clus_centroid[2] += other_sites.second[i].second->coords()[2];
   }
 
-  double nsites( sites.second.size() );
+  double nsites( other_sites.second.size() );
   clus_centroid[0] /= nsites;
   clus_centroid[1] /= nsites;
   clus_centroid[2] /= nsites;
@@ -1392,22 +1391,22 @@ void OverlayScore::calc_cluster_centroid( const SiteCluster &sites ,
 }
 
 //*****************************************************************************
-float OverlayScore::mean_square_distance_to_centroid( const vector<ClusterMember> &sites ) {
+float OverlayScore::mean_square_distance_to_centroid( const vector<ClusterMember> &other_sites ) {
 
   double centroid[3] = { 0.0 , 0.0 , 0.0 };
-  BOOST_FOREACH( ClusterMember site , sites ) {
+  BOOST_FOREACH( ClusterMember site , other_sites ) {
     const double *cds = site.second->coords();
     centroid[0] += cds[0];
     centroid[1] += cds[1];
     centroid[2] += cds[2];
   }
-  double nsites = double( sites.size() );
+  double nsites = double( other_sites.size() );
   centroid[0] /= nsites;
   centroid[1] /= nsites;
   centroid[2] /= nsites;
 
   double dist = 0.0;
-  BOOST_FOREACH( ClusterMember site , sites ) {
+  BOOST_FOREACH( ClusterMember site , other_sites ) {
     dist += site.second->square_distance( centroid );
   }
 
@@ -1416,31 +1415,31 @@ float OverlayScore::mean_square_distance_to_centroid( const vector<ClusterMember
 }
 
 //*****************************************************************************
-float OverlayScore::mean_normal_cosine( const vector<ClusterMember> &sites ) {
+float OverlayScore::mean_normal_cosine( const vector<ClusterMember> &other_sites ) {
 
   float cp = 0.0F;
   // it's not guaranteed that all sites in cluster will have a direction
   float num_sites_in_mean = 0.0F;
 
-  for( int i = 0 , is = sites.size() - 1 ; i < is ; ++i ) {
+  for( int i = 0 , is = other_sites.size() - 1 ; i < is ; ++i ) {
 #ifdef NOTYET
-    cout << "site i = " << i << " num_dirs = " << sites[i].second->get_num_dirs() << endl;
-    sites[i].second->brief_report( cout );
+    cout << "site i = " << i << " num_dirs = " << other_sites[i].second->get_num_dirs() << endl;
+    other_sites[i].second->brief_report( cout );
 #endif
-    if( !sites[i].second->get_num_dirs() ) {
+    if( !other_sites[i].second->get_num_dirs() ) {
       continue;
     }
-    const double *d1 = sites[i].second->direction( 0 );
+    const double *d1 = other_sites[i].second->direction( 0 );
     double ld1 = DACLIB::length( d1 );
-    for( int j = i + 1 , js = sites.size() ; j < js ; ++j ) {
+    for( int j = i + 1 , js = other_sites.size() ; j < js ; ++j ) {
 #ifdef NOTYET
-      cout << "site j = " << j << " num_dirs = " << sites[j].second->get_num_dirs() << endl;
-      sites[j].second->brief_report( cout );
+      cout << "site j = " << j << " num_dirs = " << other_sites[j].second->get_num_dirs() << endl;
+      other_sites[j].second->brief_report( cout );
 #endif
-      if( !sites[j].second->get_num_dirs() ) {
+      if( !other_sites[j].second->get_num_dirs() ) {
         continue;
       }
-      const double *d2 = sites[j].second->direction( 0 );
+      const double *d2 = other_sites[j].second->direction( 0 );
       double ld2 = DACLIB::length( d2 );
       // the normals might be pointing in the same or opposite directions
       float tc = fabs( DACLIB::cos_angle( d1 , ld1 , d2 , ld2 ) );

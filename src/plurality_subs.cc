@@ -170,9 +170,13 @@ void keep_best_hits( vector<boost::shared_ptr<PluralityHit> > &hits ) {
   }
 
   // take out the empty ones
-  hits.erase( remove_if( hits.begin() , hits.end() ,
-                         boost::bind( logical_not<bool>() , _1 ) ) ,
-              hits.end() );
+  int j = 0 ;
+  for( int i = 0 , is = hits.size() ; i < is ; ++i ) {
+    if( hits[i] ) {
+      hits[j++] = hits[i];
+    }
+  }
+  hits.erase( hits.begin() + j , hits.end() );
 
 }
 
@@ -381,9 +385,7 @@ void prepare_volume_grids( const string &protein_file , PPhoreQuery &query ,
 
 // ********************************************************************
 OUTPUT_FORMAT initialise_output_streams( const string &output_file_root ,
-                                         const string &output_file_ext ,
                                          PluralitySettings &plurality_settings ,
-                                         PharmPoint &pharm_points ,
                                          PPhoreQuery &query ,
                                          oemolostream  &mol_out_stream ,
                                          ofstream &out_stream ) {
@@ -406,7 +408,7 @@ OUTPUT_FORMAT initialise_output_streams( const string &output_file_root ,
 
 // ********************************************************************
 void output_setup( PluralitySettings &plurality_settings ,
-                   PharmPoint &pharm_points , PPhoreQuery &query ,
+                   PPhoreQuery &query ,
                    OUTPUT_FORMAT &output_format ,
                    oemolostream &mol_out_stream , ofstream &out_stream ) {
 
@@ -415,9 +417,8 @@ void output_setup( PluralitySettings &plurality_settings ,
                           output_file_ext );
 
   output_format =
-      initialise_output_streams( output_file_root , output_file_ext ,
-                                 plurality_settings , pharm_points , query ,
-                                 mol_out_stream , out_stream );
+      initialise_output_streams( output_file_root , plurality_settings ,
+				 query , mol_out_stream , out_stream );
 
 }
 
@@ -537,7 +538,7 @@ void serial_plurality_search( PluralitySettings &plurality_settings ) {
   oemolostream mol_out_stream;
   ofstream out_stream;
   OUTPUT_FORMAT output_format;
-  output_setup( plurality_settings , pharm_points , query ,
+  output_setup( plurality_settings , query ,
                 output_format , mol_out_stream , out_stream );
 
   boost::shared_ptr<DACLIB::VolumeGrid> protein_grid;
@@ -760,7 +761,7 @@ void parallel_plurality_search( PluralitySettings &plurality_settings ,
   oemolostream mol_out_stream;
   ofstream out_stream;
   OUTPUT_FORMAT output_format;
-  output_setup( plurality_settings , pharm_points , query ,
+  output_setup( plurality_settings , query ,
                 output_format , mol_out_stream , out_stream );
 
   unsigned int mol_count = 0 , conf_count = 0 , hit_count = 0 , hit_mol_count = 0;

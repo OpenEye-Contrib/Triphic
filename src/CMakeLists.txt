@@ -4,8 +4,15 @@ project(TRIPHIC)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/build_utils/CMakeModules/")
 
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_FILE_OFFSET_BITS=64 -ffast-math -Wall -mssse3 -msse2" )
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -D_FILE_OFFSET_BITS=64 -fomit-frame-pointer -ffast-math -Wall" )
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -W -Wall  -Wshadow -Wno-error=unused-function -fomit-frame-pointer -ffast-math -fvisibility=hidden -fvisibility-inlines-hidden -fPIC  -Werror " )
+
+if( ${CMAKE_HOST_SYSTEM_VERSION} MATCHES "^3.1" )
+  message( "Hopefully, the Ubuntu 14.04 machine, with a modern compiler." )
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11" )
+endif()
+if( ${CMAKE_HOST_SYSTEM_VERSION} MATCHES "^2.6." )
+  message( "It looks like a trusty old Centos 6 machine with an ancient compiler." )
+endif()
 
 #############################################################################
 ## required packages
@@ -33,7 +40,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_FILE_OFFSET_BITS=64 -ffas
 #set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -pg" )
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -D_FILE_OFFSET_BITS=64 -fomit-frame-pointer -ffast-math -Wall -mssse3 -msse2" )
 
-include_directories(${OEToolkits_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${MPI_INCLUDE_PATH})
+include_directories( SYSTEM ${OEToolkits_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${MPI_INCLUDE_PATH})
 
 #############################################################################
 ## build triphic

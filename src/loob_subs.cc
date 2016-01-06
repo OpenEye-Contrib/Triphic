@@ -599,7 +599,7 @@ void make_quadruplet_fingerprint( vector<SinglePPhoreSite *> &sites ,
   }
 
   int      d[4][6][2] , e[4][6][2] , f1[4] , f2[4] , f3[4] , fd1[4] , fd2[4] ,
-           fd3[4] , f4 , d4 , d5 , d6;
+           fd3[4] , f4 = -1 , d4 = -1 , d5 = -1 , d6 = -1;
 
   string bit_label( "          " );
 
@@ -855,7 +855,7 @@ void make_composite_fp( LoobSettings &loob_settings ,
 }
 
 // *************************************************************************
-void write_ascii_fp( int num_bits , LoobSettings &loob_settings ,
+void write_ascii_fp( LoobSettings &loob_settings ,
 		     const vector<pair<string,vector<int> > > &bits_set ,
 		     const vector<int> &fp_counts ,
 		     const vector<int> &full_to_compressed ,
@@ -930,9 +930,8 @@ void write_ascii_fp( int num_bits , LoobSettings &loob_settings ,
 
 // *************************************************************************
 // write out compact fingerprints - just the bit numbers of the set bits.
-void write_compact_fp( int num_bits , LoobSettings &loob_settings ,
+void write_compact_fp( LoobSettings &loob_settings ,
 		       const vector<pair<string,vector<int> > > &bits_set ,
-		       const vector<int> &fp_counts ,
 		       const vector<int> &full_to_compressed ,
 		       const vector<int> &composite_fp_bits ) {
 
@@ -969,9 +968,8 @@ void write_compact_fp( int num_bits , LoobSettings &loob_settings ,
 }
 
 // *************************************************************************
-void write_labels_not_bits_file( int num_bits , LoobSettings &loob_settings ,
+void write_labels_not_bits_file( LoobSettings &loob_settings ,
 				 const vector<pair<string,vector<int> > > &bits_set ,
-				 const vector<int> &fp_counts ,
 				 const vector<string> &bit_names ) {
 
   ofstream ofs( loob_settings.names_fp_file_.c_str() );
@@ -1305,7 +1303,7 @@ void output_fingerprints( LoobSettings &loob_settings , int mols_done ,
 
   if( loob_settings.ascii_fps_ ) {
     try {
-      write_ascii_fp( fp_map.size() , loob_settings , bits_set , fp_counts ,
+      write_ascii_fp( loob_settings , bits_set , fp_counts ,
 		      full_to_compressed , composite_fp_bits , bit_names );
     } catch( DACLIB::FileWriteOpenError &e ) {
       cerr << "Error opening file " << e.what() << " for writing ASCII fingerprints." << endl;
@@ -1313,16 +1311,14 @@ void output_fingerprints( LoobSettings &loob_settings , int mols_done ,
   }
   if( loob_settings.compact_fps_ ) {
     try {
-      write_compact_fp( fp_map.size() , loob_settings , bits_set , fp_counts ,
-			full_to_compressed , composite_fp_bits );
+      write_compact_fp( loob_settings , bits_set ,  full_to_compressed , composite_fp_bits );
     } catch( DACLIB::FileWriteOpenError &e ) {
       cerr << "Error opening file " << e.what() << " for writing compact fingerprints." << endl;
     }
   }
   if( loob_settings.labels_not_bits_ ) {
     try {
-      write_labels_not_bits_file( fp_map.size() , loob_settings , bits_set ,
-				  fp_counts , bit_names );
+      write_labels_not_bits_file( loob_settings , bits_set , bit_names );
     } catch( DACLIB::FileWriteOpenError &e ) {
       cerr << "Error opening file " << e.what() << " for writing labels file." << endl;
     }

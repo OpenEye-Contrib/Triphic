@@ -5,4 +5,4 @@
     -S test.smt \
     -P TEST.points \
     -D bit_of_chembl_20.oeb.gz \
-    --ascii-fps-file r.bits
+    --ascii-fps-file loob_test_out.bits

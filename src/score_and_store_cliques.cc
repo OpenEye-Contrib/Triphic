@@ -392,9 +392,7 @@ void add_overlay_score_to_normal_list( OverlayScore *new_score ,
 }
 
 // *************************************************************************
-void add_overlay_score_to_list( GtplDefs::SCORE_METHOD score_method ,
-                                unsigned int max_num_hits ,
-                                OverlayScore *new_score ,
+void add_overlay_score_to_list( OverlayScore *new_score ,
                                 list<OverlayScore *> &clique_overlays ) {
 
 #ifdef NOTYET
@@ -448,7 +446,7 @@ void add_overlay_score_to_list( GtplDefs::SCORE_METHOD score_method ,
     // if (*where) is better than new_score, add new_score to (*where), otherwise
     // need to add (*where) and all its similars to new_score
     if( *(*where) > *new_score ) {
-      (*where)->add_similar( new_score );
+      (*where)->add_similar();
       delete new_score; // don't need it anymore
       return;
     } else {
@@ -490,11 +488,10 @@ void score_and_store_cliques( const string &query_name , int query_conf_num ,
                               vector<SinglePPhoreSite *> &query_score_sites ,
                               vector<SinglePPhoreSite *> &target_sites ,
                               OEMol *target_mol , int target_conf_num ,
-                              shared_ptr<DACLIB::VolumeGrid> &query_solid_grid ,
-                              shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
+                              boost::shared_ptr<DACLIB::VolumeGrid> &query_solid_grid ,
+                              boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                               const vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ,
                               const vector<vector<int> > &cliques ,
-                              GtplDefs::SCORE_METHOD score_method ,
                               GtplDefs::DIRS_USAGE ring_norm_usage ,
                               GtplDefs::DIRS_USAGE h_vector_usage ,
                               GtplDefs::DIRS_USAGE lp_usage ,
@@ -513,13 +510,12 @@ void score_and_store_cliques( const string &query_name , int query_conf_num ,
                               const vector<string> &required_sites_and ,
                               const vector<string> &required_points_or ,
                               const vector<string> &required_points_and ,
-                              unsigned int max_num_hits ,
-                              shared_ptr<OESzybki> &szybki ,
+                              boost::shared_ptr<OESzybki> &szybki ,
                               list<OverlayScore *> &clique_overlays ) {
 
   string target_title = target_mol->GetTitle();
 
-  vector<shared_ptr<SinglePPhoreSite> > ov_target_sites;
+  vector<boost::shared_ptr<SinglePPhoreSite> > ov_target_sites;
 
   bool use_ring_norms_in_overlay = ring_norm_usage == GtplDefs::ALIGN;
   bool check_ring_norms = ( ring_norm_usage == GtplDefs::SCREEN ||
@@ -609,8 +605,7 @@ void score_and_store_cliques( const string &query_name , int query_conf_num ,
                                      required_points_or , required_points_and ) &&
           required_sites_satisfied( *new_score , query_sites , target_sites ,
                                     required_sites_or , required_sites_and ) ) {
-        add_overlay_score_to_list( score_method , max_num_hits , new_score ,
-                                   clique_overlays );
+        add_overlay_score_to_list( new_score , clique_overlays );
       } else {
         delete new_score;
       }
@@ -632,11 +627,10 @@ void score_and_store_cliques_no_overlay( const string &query_name ,
                                          vector<SinglePPhoreSite *> &query_score_sites ,
                                          vector<SinglePPhoreSite *> &target_sites ,
                                          OEMol *target_mol , int target_conf_num ,
-                                         shared_ptr<DACLIB::VolumeGrid> &query_solid_grid ,
-                                         shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
+                                         boost::shared_ptr<DACLIB::VolumeGrid> &query_solid_grid ,
+                                         boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                                          const vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ,
                                          const vector<vector<int> > &cliques ,
-                                         GtplDefs::SCORE_METHOD score_method ,
                                          GtplDefs::DIRS_USAGE ring_norm_usage ,
                                          GtplDefs::DIRS_USAGE h_vector_usage ,
                                          GtplDefs::DIRS_USAGE lp_usage ,
@@ -673,7 +667,7 @@ void score_and_store_cliques_no_overlay( const string &query_name ,
                      lp_usage == GtplDefs::ALIGN );
   float lpt = cos( M_PI * lp_tol / 180.0 );
 
-  shared_ptr<OESzybki> szybki; // not used
+  boost::shared_ptr<OESzybki> szybki; // not used
 
   for( int i = 0 , is = cliques.size() ; i < is ; ++i ) {
 
@@ -695,7 +689,7 @@ void score_and_store_cliques_no_overlay( const string &query_name ,
 
     // make sure any vectors are lined up, including twiddling/flipping
     // X-H or LP vectors if possible. This is in SinglePPhoreSite.cc
-    vector<shared_ptr<SinglePPhoreSite> > ov_target_sites = new_score->get_ov_sites();
+    vector<boost::shared_ptr<SinglePPhoreSite> > ov_target_sites = new_score->get_ov_sites();
     if( confirm_site_vectors( cliques[i] , query_sites , ov_target_sites ,
                               check_ring_norms , rnt , check_h_vectors , hvt ,
                               check_lps , lpt ) ) {
@@ -721,8 +715,7 @@ void score_and_store_cliques_no_overlay( const string &query_name ,
                                      required_points_or , required_points_and ) &&
           required_sites_satisfied( *new_score , query_sites , target_sites ,
                                     required_sites_or , required_sites_and ) ) {
-        add_overlay_score_to_list( score_method , numeric_limits<int>::max() ,
-                                   new_score , clique_overlays );
+        add_overlay_score_to_list( new_score , clique_overlays );
       } else {
         delete new_score;
       }

@@ -90,8 +90,7 @@ void add_moe_site( double cds[3] , const string &type_string ,
 }
 
 // ****************************************************************************
-void map_moe_names_to_points_names( PharmPoint &pharm_points ,
-                                    vector<pair<string,string> > &moe_names_to_points_names ) {
+void map_moe_names_to_points_names( vector<pair<string,string> > &moe_names_to_points_names ) {
 
   // pharm_points should have a good mapping of the MOE features types as
   // they are set up in MOEPointsDefs.H, but there are some wrinkles.
@@ -339,7 +338,7 @@ void build_sites_from_moe_features( string &moe_features ,
   psx.parse_string( DACLIB::MOE_POINT_DEFS , input_smarts , smarts_sub_defn );
 
   vector<pair<string,string> > moe_names_to_points_names;
-  map_moe_names_to_points_names( pharm_points , moe_names_to_points_names );
+  map_moe_names_to_points_names( moe_names_to_points_names );
 
   // first line of incoming string (up to \n) is a header line
   size_t i = 0;

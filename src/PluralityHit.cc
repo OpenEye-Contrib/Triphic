@@ -89,7 +89,7 @@ PluralityHit::PluralityHit( OEMol &target_mol , int conf_num ,
   }
 
   hit_angles_ = hit_angles;
-  hit_torsions_ = hit_torsions_;
+  hit_torsions_ = hit_torsions;
 
   boost::shared_ptr<DACLIB::VolumeGrid> mol_vol_grid;
   if( protein_grid ) {

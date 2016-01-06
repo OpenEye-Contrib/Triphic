@@ -36,8 +36,7 @@ private :
 
 public :
 
-  AtomSphere( int atomic_num , int step_ratio , float par_grid_spacing ,
-	      float radius );
+  AtomSphere( int an , int sr , float par_grid_spacing , float radius );
   ~AtomSphere();
 
   unsigned int atomic_num() const { return atomic_num_; }

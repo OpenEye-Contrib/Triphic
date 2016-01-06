@@ -751,17 +751,17 @@ void add_dir_sites( GtplDefs::DIRS_TYPE dirs_type ,
     // the first example seen being aniline NH2 for DONORS
     float best_dot = -1.0;
     int best1 = -1 , best2 = -1;
-    for( int i = 0 ; i < nsd1 ; ++i ) {
-      if( dirs_type != site1->direction_type( i ) ) {
+    for( int ii = 0 ; ii < nsd1 ; ++ii ) {
+      if( dirs_type != site1->direction_type( ii ) ) {
         continue;
       }
       for( int j = 0 ; j < nsd2; ++j ) {
         if( dirs_type != site2->direction_type( j ) ) {
           continue;
         }
-        float this_dot = DACLIB::dot_product( site1_dirs + 3 * i , site2_dirs + 3 * j );
+        float this_dot = DACLIB::dot_product( site1_dirs + 3 * ii , site2_dirs + 3 * j );
         if( this_dot > best_dot ) {
-          best1 = i;
+          best1 = ii;
           best2 = j;
           best_dot = this_dot;
         }

@@ -7,7 +7,6 @@
 // Builds a 3D grid in which molecules can be dropped to calculate included volumes
 // and the like.
 
-#include "crash.H"
 #include "gtpl_defs.H"
 #include "stddefs.H"
 #include "AtomSphere.H"
