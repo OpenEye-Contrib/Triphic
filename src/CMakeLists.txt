@@ -120,7 +120,7 @@ set(TRIPHIC_DACLIB_INCS stddefs.H
 # QtCreator picks them up and puts them in the project
 add_executable(triphic ${TRIPHIC_SRCS} ${TRIPHIC_DACLIB_SRCS}
   ${TRIPHIC_INCS} ${TRIPHIC_DACLIB_INCS})
-target_link_libraries(triphic ${LIBS} ${OEToolkits_LIBRARIES}
+target_link_libraries(triphic ${LIBS} ${TRIPHIC_SOURCE_DIR}/libtautenum.a ${OEToolkits_LIBRARIES}
   ${Boost_LIBRARIES} ${MPI_LIBRARIES} z pthread)
 
 #############################################################################

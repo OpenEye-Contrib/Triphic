@@ -1,12 +1,12 @@
 //
 // file PharmPoint.H
-// David Cosgrove
+// Dave Cosgrove
 // AstraZeneca
 // 12th November 2002
 //
 // This is the interface file for the class PharmPoint.  It holds definitions
-// for pharmacophore points used by various programsincluding Triphic, Loob
-// and Plurality.
+// for pharmacophore points used by various programs starting with Pig and
+// ultimately including Triphic, Loob and Puph.
 
 #ifndef DAC_PHARM_POINT__
 #define DAC_PHARM_POINT__
@@ -40,6 +40,8 @@ public:
   bool &hphobes_itmoc_alo() { return hphobes_itmoc_alo_; }
   std::string &itmoc_label() { return itmoc_label_; }
   std::string &itmoc_alo_label() { return itmoc_alo_label_; }
+  // case insensitive check of points defs against name.
+  bool has_point_of_name( const std::string &point_name ) const;
 
   // file readers throw DACLIB::FileReadOpenError if they feel the urge
   virtual void read_points_file( const std::string &file_name );

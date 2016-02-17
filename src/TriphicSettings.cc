@@ -56,6 +56,7 @@ TriphicSettings::TriphicSettings() :
   dont_do_sub_cliques_( false ) ,
   restart_( false ) ,
   chunk_size_( 5 ) ,
+  max_versions_( 16 ) ,
   score_method_( GtplDefs::RMS_AND_SIZE ) ,
   ring_norm_usage_( GtplDefs::IGNORE ) ,
   h_vector_usage_( GtplDefs::IGNORE ) ,
@@ -460,7 +461,8 @@ void TriphicSettings::send_contents_via_mpi( int dest_slave ) {
   MPI_Send( &i , 1 , MPI_INT , dest_slave , 0 , MPI_COMM_WORLD );
   i = static_cast<int>( dont_do_sub_cliques_ );
   MPI_Send( &i , 1 , MPI_INT , dest_slave , 0 , MPI_COMM_WORLD );
-  MPI_Send( &chunk_size_ , 1 , MPI_INT , dest_slave , 0 , MPI_COMM_WORLD );
+  MPI_Send( &chunk_size_ , 1 , MPI_UNSIGNED , dest_slave , 0 , MPI_COMM_WORLD );
+  MPI_Send( &max_versions_ , 1 , MPI_UNSIGNED , dest_slave , 0 , MPI_COMM_WORLD );
 
   i = static_cast<int>( score_method_ );
   MPI_Send( &i , 1 , MPI_INT , dest_slave , 0 , MPI_COMM_WORLD );
@@ -553,7 +555,8 @@ void TriphicSettings::receive_contents_via_mpi() {
   all_best_hits_ = static_cast<bool>( i );
   MPI_Recv( &i , 1 , MPI_INT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   dont_do_sub_cliques_ = static_cast<bool>( i );
-  MPI_Recv( &chunk_size_ , 1 , MPI_INT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+  MPI_Recv( &chunk_size_ , 1 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
+  MPI_Recv( &max_versions_ , 1 , MPI_UNSIGNED , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
 
   MPI_Recv( &i , 1 , MPI_INT , 0 , 0 , MPI_COMM_WORLD , MPI_STATUS_IGNORE );
   score_method_ = static_cast<GtplDefs::SCORE_METHOD>( i );
@@ -726,7 +729,9 @@ void TriphicSettings::build_program_options() {
       ( "restart-number" , po::value<unsigned int>( &restart_number_ ) ,
         "Molecule number from which to restart, over-riding what's in the restart file." )
       ( "parallel-chunk-size" , po::value<unsigned int>( &chunk_size_ ) ,
-        "Number of molecules to do in one step on each slave when running in parallel (default 5)." );
+        "Number of molecules to do in one step on each slave when running in parallel (default 5)." )
+      ( "max-versions" , po::value<unsigned int>( &max_versions_ )->default_value( 16 ) ,
+        "Maximum number of ions, tautomers and stereoisomers for each input molecule." );
 
 }
 

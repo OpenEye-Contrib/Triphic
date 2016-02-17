@@ -1,12 +1,12 @@
 //
 // file PharmPoint.cc
-// David Cosgrove
+// Dave Cosgrove
 // AstraZeneca
 // 12th November 2002
 //
 // This is the implementation file for the class PharmPoint.  It holds
-// definitions for pharmacophore points used by various programs
-// including Triphic, Loob and Plurality
+// definitions for pharmacophore points used by various programs starting with
+// Pig and ultimately including Triphic, Loob and Puph.
 
 #include <algorithm>
 #include <fstream>
@@ -20,6 +20,7 @@
 #include "PharmPoint.H"
 #include "SMARTSExceptions.H"
 
+#include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
 // hints for using boost::ptree for parsing XML came from
 // http://akrzemi1.wordpress.com/2011/07/13/parsing-xml-with-boost
@@ -41,6 +42,19 @@ void PharmPoint::set_defaults() {
 
 // ******************************************************************************
 // public member functions
+// ******************************************************************************
+bool PharmPoint::has_point_of_name( const string &point_name ) const {
+
+  for( map<string,vector<string> >::const_iterator p = points_defs_.begin() ,
+       ps = points_defs_.end() ; p != ps ; ++p ) {
+    if( boost::iequals( point_name , p->first ) ) {
+      return true;
+    }
+  }
+  return false;
+
+}
+
 // ******************************************************************************
 // read the points definitions from file
 void PharmPoint::read_points_file( const string &file_name ) {
@@ -182,6 +196,10 @@ void PharmPoint::read_points_xml_stream( std::istream &is ) {
     hphobes_itmoc_alo_ = false; // it's redundant, so ignore it
   }
 
+#ifdef NOTYET
+  report_points_defined( cout );
+#endif
+
 }
 
 // ************************************************************************
@@ -276,12 +294,12 @@ void PharmPoint::check_points_smarts( const vector<pair<string,string> > &input_
     }
   }
 
-#if DEBUG == 1
+  //#if DEBUG == 1
   cout << "Unique SMARTS : ";
   copy( unique_smarts().begin() , unique_smarts().end() ,
         ostream_iterator<string>( cout , " " ) );
   cout << endl;
-#endif
+  //#endif
 
 }
 

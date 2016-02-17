@@ -1,13 +1,13 @@
 //
 // file OverlayTrans.H
-// David Cosgrove
-// AstraZeneca
+// Dave Cosgrove
+// AstraZeneca UK
 // 23rd March 2000
 //
-// This is the interface file for the class OverlayTrans.  It holds two
-// translations and a rotation, and is used for overlaying GraphicalObjects,
-// most likely molecules.  The first translation is applied to the object, then
-// the rotation, then the second translation.
+// This is the interface (and probably the implementation) file for the class
+// OverlayTrans.  It holds two translations and a rotation, and is used for
+// overlaying GraphicalObjects, most likely molecules.  The first translation
+// is applied to the object, then the rotation, then the second translation.
 
 #ifndef DAC_OVERLAY_TRANS
 #define DAC_OVERLAY_TRANS

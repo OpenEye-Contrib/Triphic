@@ -1,0 +1,12 @@
+#moe:ph4que 2014.09
+#pharmacophore 7 tag t value *
+scheme t Unified matchsize i 0 use_Hs i 1 abspos i 0 title t $ useRval i
+0 comment s $
+#feature 6 expr tt color ix x r y r z r r r ebits ix gbits ix m ix
+Acc df2f2 14.906 22.137 9.172 1 0 400 a64cff Acc df2f2 13.913 20.227
+8.818 1 0 400 a64cff Aro ff8000 19.0666666666667 18.4976666666667
+9.31266666666666 1 0 400 a64cff Aro ff8000 19.4128333333333
+23.0871666666667 6.33733333333335 1 0 400 a64cff Aro ff8000 17.243
+19.6098 9.19800000000001 1 0 400 a64cff Aro ff8000 14.773 17.369
+12.2463333333333 1 0 400 a64cff
+#endpharmacophore

@@ -74,6 +74,7 @@ public :
   bool dont_do_sub_cliques() const { return dont_do_sub_cliques_; }
   unsigned int chunk_size() const { return chunk_size_; }
   void set_chunk_size( unsigned int ni ) { chunk_size_ = ni; }
+  unsigned int max_versions() const { return max_versions_; }
 
   std::vector<std::string> req_sites_or() const { return req_sites_or_; }
   std::vector<std::string> req_sites_and() const { return req_sites_and_; }
@@ -153,6 +154,7 @@ private :
                                 Default is to generate them. */
   bool restart_; // whether it's a restart job
   unsigned int chunk_size_; // for parallel jobs
+  unsigned int max_versions_; // for a particular molecule, max number of ions, tautomers, stereoisomers
 
   std::vector<std::string> req_sites_or_ , req_sites_and_;
   std::vector<std::string> req_points_or_ , req_points_and_;

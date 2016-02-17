@@ -46,7 +46,7 @@ int main( int argc , char **argv ) {
   cout << "Triphic v3.2." << endl
        << "Built " << BUILD_TIME << " using OEToolkits version "
        << OEChemGetRelease() << "." << endl << endl
-       << "Copyright AstraZeneca 2009, 2014, 2015." << endl << endl;
+       << "Copyright AstraZeneca 2009, 2014, 2015, 2016." << endl << endl;
 
   // sort out the  MPI environment
   MPI_Init( NULL , NULL );

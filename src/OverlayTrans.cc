@@ -1,6 +1,6 @@
 //
 // file OverlayTrans.cc
-// David Cosgrove
+// Dave Cosgrove
 // AstraZeneca UK
 // 12th February 2003
 //

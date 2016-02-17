@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
 <title>Triphic</title>
@@ -153,7 +153,13 @@ file is low.
 	CCDC's pharmacophore overlay program (JCAMD, 26, 451-472) and is the
 	combination score from shape tanimoto, h-bond and hydrophobe
 	scores.  OVERALL_PARETO uses all the scores in the current
-	search to come up with a best consensus order. 
+	search to come up with a best consensus order.  In order to
+	get a Robin_HPhobe score for ROBINS_PARETO scoring, you need a
+	point of type Hydrophobe in the points file. It's a sad fact
+	that the ROBINS_PARETO method is an afterthought, and
+	therefore doesn't fit in with points file structure very well.
+	Triphic will check that the points file is compatible with
+	ROBINS_PARETO and not proceed if it isn't.
     </li>
     <li>
       --ring-normal-vector &lt;IGNORE|SCREEN|ALIGN&gt; How to treat ring normal
@@ -206,6 +212,13 @@ file is low.
       you search and hence get hits for a stereoisomer that isn't the
       one in the bottle. Whether you use flipper or not is a matter of
       debate, but you do at least have the choice!
+    </li>
+    <li>
+      --do-ionisation-and-tautomers This imposes the ionisation and
+      tautomer models currently in vogue at AstraZeneca for preparing
+      virtual screening databases.  It uses the code in the TautEnum
+      project that should be available from the same place you
+      obtained this code.
     </li>
 <li>
   --no-warts By default, when the Omega conformations are enumerated
@@ -418,6 +431,19 @@ file is low.
   --restart but allows you to over-ride the point in the database file
   it starts from, using the integer argument, which is the number of
   molecules to skip before starting searching again. 
+</li>
+<li>
+  --parallel-chunk-size Sometimes, to reduce latency, it's quicker if
+  the slave process in a parallel job do more than one molecule at a
+  time.  The default is to do chunks of 5 molecules.
+</li>
+<li>
+  --max-versions This controls the number of ionisation, tautomer and
+  stereoisomer states that are generated if doing these things. The
+  default is 16. Some compounds can produce ridiculous numbers of
+  these, which slows the whole thing down. If the number is exceeded,
+  the molecule is skipped.  The program is for rapid screening of
+  likely drug molecules, after all.
 </li>
 </ul>
 
