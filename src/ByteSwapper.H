@@ -1,6 +1,6 @@
 //
 // file ByteSwapper.H
-// Dave Cosgrove
+// David Cosgrove
 // AstraZeneca
 // 9th May 2001
 //

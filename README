@@ -25,7 +25,7 @@ You will also now need libtautenum.a in the src directory.  This is
 generated when the project TautEnum is built, which should be
 available from where you obtained this program.  The tautenum library
 allows the application of an ionisation and tautomer model on-the-fly
-in attempt to make the search more physiologically meaningful.
+in an attempt to make the search more physiologically meaningful.
 
 To build the programs, use the CMakeLists.txt file in the src
 directory. It requires the following environment variable to point to

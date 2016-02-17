@@ -1,6 +1,6 @@
 //
 // file LoobSettings.cc
-// Dave Cosgrove
+// David Cosgrove
 // AstraZeneca
 // 2nd October 2007
 //

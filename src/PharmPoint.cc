@@ -1,12 +1,12 @@
 //
 // file PharmPoint.cc
-// Dave Cosgrove
+// David Cosgrove
 // AstraZeneca
 // 12th November 2002
 //
 // This is the implementation file for the class PharmPoint.  It holds
-// definitions for pharmacophore points used by various programs starting with
-// Pig and ultimately including Triphic, Loob and Puph.
+// definitions for pharmacophore points used by various programs including Triphic,
+// Loob and Plurality.
 
 #include <algorithm>
 #include <fstream>
