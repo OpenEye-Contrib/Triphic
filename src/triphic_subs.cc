@@ -46,7 +46,7 @@ using namespace OEChem;
 using namespace OESz;
 using namespace OEConfGen;
 
-typedef shared_ptr<OEMol> pOEMol;
+typedef boost::shared_ptr<OEMol> pOEMol;
 
 namespace DACLIB {
 void read_smarts_file( const string &smarts_file ,
@@ -81,8 +81,8 @@ void score_and_store_cliques( const string &query_name , int query_conf_num ,
                               vector<SinglePPhoreSite *> &query_score_sites ,
                               vector<SinglePPhoreSite *> &target_sites ,
                               OEMol *target_mol , int target_conf_num ,
-                              shared_ptr<DACLIB::VolumeGrid> &query_solid_grid ,
-                              shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
+                              boost::shared_ptr<DACLIB::VolumeGrid> &query_solid_grid ,
+                              boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                               const vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ,
                               const vector<vector<int> > &cliques ,
                               GtplDefs::DIRS_USAGE ring_norm_usage ,
@@ -103,7 +103,7 @@ void score_and_store_cliques( const string &query_name , int query_conf_num ,
                               const vector<string> &required_sites_and ,
                               const vector<string> &required_points_or ,
                               const vector<string> &required_points_and ,
-                              shared_ptr<OESzybki> &szybki ,
+                              boost::shared_ptr<OESzybki> &szybki ,
                               list<OverlayScore *> &clique_overlays );
 // this also in score_and_store_cliques.cc
 bool add_overlay_score_to_list( OverlayScore *new_score ,
@@ -116,7 +116,7 @@ void overlay_mols_and_sites( OEMol *target_mol ,
                              bool use_h_vectors , bool use_lps ,
                              OEMolBase *&target_conf );
 // and this
-float optimise_overlay( shared_ptr<OESzybki> &szybki ,
+float optimise_overlay( boost::shared_ptr<OESzybki> &szybki ,
                         OEMolBase *target_conf ,
                         vector<SinglePPhoreSite *> &ov_target_sites );
 
@@ -314,7 +314,7 @@ void read_query_file( TriphicSettings &ts ,
 
 // ********************************************************************
 void read_protein_file( const string &protein_file ,
-                        shared_ptr<OEMolBase> &protein ) {
+                        boost::shared_ptr<OEMolBase> &protein ) {
 
   if( protein_file.empty() )
     return;
@@ -322,7 +322,7 @@ void read_protein_file( const string &protein_file ,
   oemolistream ims( protein_file.c_str() );
   if( !ims )
     throw DACLIB::FileReadOpenError( protein_file.c_str() );
-  protein = shared_ptr<OEMolBase>( OENewMolBase( OEMolBaseType::OEDefault ) );
+  protein = boost::shared_ptr<OEMolBase>( OENewMolBase( OEMolBaseType::OEDefault ) );
   ims >> *protein;
 
 }
@@ -355,9 +355,9 @@ void read_subset_file( const string &subset_file ,
 
 // ********************************************************************
 void prepare_query_volume_grids( OEMolBase *query_mol ,
-                                 shared_ptr<DACLIB::VolumeGrid> &query_grid ,
-                                 shared_ptr<OEMolBase> &protein ,
-                                 shared_ptr<DACLIB::VolumeGrid> &protein_grid ) {
+                                 boost::shared_ptr<DACLIB::VolumeGrid> &query_grid ,
+                                 boost::shared_ptr<OEMolBase> &protein ,
+                                 boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ) {
 
   // prepare_mol_grid puts surface and core markers into the grid, so can
   // do single conf against single conf volume and surface volume calcs in
@@ -365,25 +365,25 @@ void prepare_query_volume_grids( OEMolBase *query_mol ,
   // we'll want to calculate the final number of the grid_shape_tani,
   // included and total vols.
   if( query_mol && *query_mol ) {
-    query_grid = shared_ptr<DACLIB::VolumeGrid>( DACLIB::prepare_mol_grid( query_mol ) );
+    query_grid = boost::shared_ptr<DACLIB::VolumeGrid>( DACLIB::prepare_mol_grid( query_mol ) );
   } else {
-    query_grid = shared_ptr<DACLIB::VolumeGrid>( static_cast<DACLIB::VolumeGrid *>( 0 ) );
+    query_grid = boost::shared_ptr<DACLIB::VolumeGrid>( static_cast<DACLIB::VolumeGrid *>( 0 ) );
   }
 
   if( !protein ) {
     return; // no protein
   }
 
-  protein_grid = shared_ptr<DACLIB::VolumeGrid>( DACLIB::prepare_mol_grid( protein.get() ) );
+  protein_grid = boost::shared_ptr<DACLIB::VolumeGrid>( DACLIB::prepare_mol_grid( protein.get() ) );
 
 }
 
 // ********************************************************************
 void prepare_szybki_optimiser( const TriphicSettings &ts ,
-                               shared_ptr<OEMolBase> &protein ,
-                               shared_ptr<OESzybki> &szybki ) {
+                               boost::shared_ptr<OEMolBase> &protein ,
+                               boost::shared_ptr<OESzybki> &szybki ) {
 
-  szybki = shared_ptr<OESzybki>( new OESzybki );
+  szybki = boost::shared_ptr<OESzybki>( new OESzybki );
   szybki->SetProtein( *protein ); // rigid by default
   szybki->SetProteinElectrostaticModel( OEProteinElectrostatics::NoElectrostatics );
 
@@ -413,8 +413,8 @@ void overlay_hit_and_store( OEMol &target_mol ,
                             vector<BasePPhoreSite *> &query_sites ,
                             vector<SinglePPhoreSite *> &query_score_sites ,
                             vector<vector<SinglePPhoreSite *> > &target_sites ,
-                            shared_ptr<DACLIB::VolumeGrid> &query_grid ,
-                            shared_ptr<DACLIB::VolumeGrid> protein_grid ,
+                            boost::shared_ptr<DACLIB::VolumeGrid> &query_grid ,
+                            boost::shared_ptr<DACLIB::VolumeGrid> protein_grid ,
                             const vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ,
                             bool use_ring_norms , bool use_h_vectors ,
                             bool use_lps ,
@@ -617,10 +617,10 @@ void output_results( OEMolBase *query_mol ,
 }
 
 // ********************************************************************
-bool not_smarts_hit( vector<shared_ptr<OESubSearch> > &not_smarts_subs ,
+bool not_smarts_hit( vector<boost::shared_ptr<OESubSearch> > &not_smarts_subs ,
                      OEMol &target_mol ) {
 
-  vector<shared_ptr<OESubSearch> >::iterator p , ps;
+  vector<boost::shared_ptr<OESubSearch> >::iterator p , ps;
   for( p = not_smarts_subs.begin() , ps = not_smarts_subs.end() ;
        p != ps ; ++p ) {
     if( (*p)->SingleMatch( target_mol ) )
@@ -637,8 +637,8 @@ void store_hits( list<OverlayScore *> &this_query_hits ,
                  vector<BasePPhoreSite *> &query_sites ,
                  vector<SinglePPhoreSite *> &query_score_sites ,
                  vector<vector<SinglePPhoreSite *> > &target_sites ,
-                 shared_ptr<DACLIB::VolumeGrid> &query_vol_grid ,
-                 shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
+                 boost::shared_ptr<DACLIB::VolumeGrid> &query_vol_grid ,
+                 boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                  const vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ,
                  OEMolBase *query_mol , OEMol &target_mol ,
                  TriphicSettings &ts ,
@@ -756,11 +756,11 @@ void search_target_molecule( vector<pair<string,string> > &input_smarts ,
                              vector<BasePPhoreSite *> &query_sites ,
                              vector<SinglePPhoreSite *> &query_score_sites ,
                              TriphicSettings &ts ,
-                             shared_ptr<DACLIB::VolumeGrid> &query_vol_grid ,
-                             shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
+                             boost::shared_ptr<DACLIB::VolumeGrid> &query_vol_grid ,
+                             boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                              const vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ,
-                             shared_ptr<OESzybki> &szybki ,
-                             vector<shared_ptr<OESubSearch> > &not_smarts_subs ,
+                             boost::shared_ptr<OESzybki> &szybki ,
+                             vector<boost::shared_ptr<OESubSearch> > &not_smarts_subs ,
                              OEMol &target_mol ,
                              list<OverlayScore *> &hit_list ) {
 
@@ -994,7 +994,7 @@ void send_results_to_master( list<OverlayScore *> &hits ) {
 
 // ********************************************************************
 void do_omega_if_necessary( vector<pOEMol> &prepped_target_mols ,
-                            shared_ptr<OEOmega> &omega ,
+                            boost::shared_ptr<OEOmega> &omega ,
                             bool do_omega , bool do_flipper ,
                             bool do_warts ,
                             unsigned int max_versions ,
@@ -1037,7 +1037,7 @@ void do_omega_if_necessary( vector<pOEMol> &prepped_target_mols ,
     if( do_omega || ( prepped_target_mols[i]->NumAtoms() &&
                       3 != prepped_target_mols[i]->GetDimension() ) ) {
       if( !omega && OEOmegaIsLicensed( "toolkit" ) ) {
-        omega = shared_ptr<OEOmega>( new OEOmega );
+        omega = boost::shared_ptr<OEOmega>( new OEOmega );
       }
       (*omega)( *(out_mols[i]) );
       OESetDimensionFromCoords( *out_mols[i] );
@@ -1074,7 +1074,7 @@ void do_omega_if_necessary( vector<pOEMol> &prepped_target_mols ,
 }
 
 // ********************************************************************
-void prepare_search_molecule( OEMol &target_mol , shared_ptr<OEOmega> &omega ,
+void prepare_search_molecule( OEMol &target_mol , boost::shared_ptr<OEOmega> &omega ,
                               bool do_omega , bool do_flipper ,
                               bool do_ions_and_tauts , bool do_warts ,
                               unsigned int max_versions ,
@@ -1084,7 +1084,7 @@ void prepare_search_molecule( OEMol &target_mol , shared_ptr<OEOmega> &omega ,
     // Suppress irritating warnings from OELibraryGen (and everything else, of course, but
     // OELibraryGen gives a lot of very irritating stuff)
     OESystem::OEThrow.SetLevel( OESystem::OEErrorLevel::Error );
-    shared_ptr<OEMolBase> sc_target_mol( OENewMolBase( target_mol.SCMol() ,
+    boost::shared_ptr<OEMolBase> sc_target_mol( OENewMolBase( target_mol.SCMol() ,
                                                        OEMolBaseType::OEDefault ) );
     vector<OEMolBase *> tm = enumerate_tautomers( *sc_target_mol , string( "" ) ,
                                                   string( "" ) );
@@ -1183,11 +1183,11 @@ void search_database( unsigned int next_mol , int step_size ,
                       vector<SinglePPhoreSite *> &query_score_sites ,
                       const vector<string> &mol_subset ,
                       TriphicSettings &ts ,
-                      shared_ptr<DACLIB::VolumeGrid> &query_vol_grid ,
-                      shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
+                      boost::shared_ptr<DACLIB::VolumeGrid> &query_vol_grid ,
+                      boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                       const vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ,
-                      shared_ptr<OESzybki> &szybki , shared_ptr<OEOmega> &omega ,
-                      vector<shared_ptr<OESubSearch> > &not_smarts_subs ,
+                      boost::shared_ptr<OESzybki> &szybki , boost::shared_ptr<OEOmega> &omega ,
+                      vector<boost::shared_ptr<OESubSearch> > &not_smarts_subs ,
                       list<OverlayScore *> &hit_list ) {
 
   for( int i = 0 ; i < step_size ; ++i ) {
@@ -1243,7 +1243,7 @@ void search_database( unsigned int next_mol , int step_size ,
 // ********************************************************************
 void make_not_smarts_queries( const vector<pair<string,string> > &not_smarts_list ,
                               vector<pair<string,string> > &smarts_sub_defn ,
-                              vector<shared_ptr<OESubSearch> > &not_smarts_subs ) {
+                              vector<boost::shared_ptr<OESubSearch> > &not_smarts_subs ) {
 
   for( int i = 0 , is = not_smarts_list.size() ; i < is ; ++i ) {
     string exp_smarts( not_smarts_list[i].second );
@@ -1259,7 +1259,7 @@ void make_not_smarts_queries( const vector<pair<string,string> > &not_smarts_lis
           << "in make_not_smarts_queries()" << endl;
       throw( DACLIB::SMARTSDefnError( oss.str().c_str() ) );
     }
-    not_smarts_subs.push_back( shared_ptr<OESubSearch>( new OESubSearch( exp_smarts.c_str() ) ) );
+    not_smarts_subs.push_back( boost::shared_ptr<OESubSearch>( new OESubSearch( exp_smarts.c_str() ) ) );
   }
 
 }
@@ -1269,8 +1269,8 @@ void make_not_smarts_queries( const vector<pair<string,string> > &not_smarts_lis
 // which will be used in the Pareto rankings.
 OverlayScore *make_reference_overlay( OEMolBase *query_mol ,
                                       vector<BasePPhoreSite *> &query_sites ,
-                                      shared_ptr<DACLIB::VolumeGrid> &query_vol_grid ,
-                                      shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
+                                      boost::shared_ptr<DACLIB::VolumeGrid> &query_vol_grid ,
+                                      boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                                       vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ) {
 
   vector<int> clique = vector<int>( 2 * query_sites.size() , 0 );
@@ -1282,7 +1282,7 @@ OverlayScore *make_reference_overlay( OEMolBase *query_mol ,
   }
 
   OEMol query_cp( *query_mol );
-  shared_ptr<OESz::OESzybki> szybki( static_cast<OESz::OESzybki *>( 0 ) );
+  boost::shared_ptr<OESz::OESzybki> szybki( static_cast<OESz::OESzybki *>( 0 ) );
   try {
     OverlayScore *ret_val = new OverlayScore( string( query_mol->GetTitle() ) , string( query_mol->GetTitle() ) ,
                                               0 , 0 , clique , query_sites ,
@@ -1314,14 +1314,14 @@ void setup_search( TriphicSettings &ts ,
                    OEMolBase *&query_mol ,
                    vector<BasePPhoreSite *> &query_sites ,
                    vector<SinglePPhoreSite *> &query_score_sites ,
-                   shared_ptr<OEMolBase> &protein ,
+                   boost::shared_ptr<OEMolBase> &protein ,
                    vector<string> &mol_subset ,
-                   shared_ptr<DACLIB::VolumeGrid> &query_vol_grid ,
-                   shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
+                   boost::shared_ptr<DACLIB::VolumeGrid> &query_vol_grid ,
+                   boost::shared_ptr<DACLIB::VolumeGrid> &protein_grid ,
                    vector<pair<string,DACLIB::VolumeGrid *> > &score_vol_grids ,
-                   shared_ptr<OESzybki> &szybki ,
-                   shared_ptr<OEOmega> &omega ,
-                   vector<shared_ptr<OESubSearch> > &not_smarts_subs ,
+                   boost::shared_ptr<OESzybki> &szybki ,
+                   boost::shared_ptr<OEOmega> &omega ,
+                   vector<boost::shared_ptr<OESubSearch> > &not_smarts_subs ,
                    bool report_sites ) {
 
   if( !ts.smarts_file().empty() && !ts.points_file().empty() ) {
@@ -1398,7 +1398,7 @@ void setup_search( TriphicSettings &ts ,
   }
 
   if( ts.do_omega() ) {
-    omega = shared_ptr<OEOmega>( new OEOmega );
+    omega = boost::shared_ptr<OEOmega>( new OEOmega );
   }
 
   // SMARTS that the hits can't match
@@ -1484,14 +1484,14 @@ int serial_triphic_search( TriphicSettings &ts ) {
   OEMolBase *query_mol;
   vector<BasePPhoreSite *> query_sites;
   vector<SinglePPhoreSite *> query_score_sites;
-  shared_ptr<OEMolBase> protein;
+  boost::shared_ptr<OEMolBase> protein;
   vector<string> mol_subset;
-  shared_ptr<DACLIB::VolumeGrid> query_vol_grid;
-  shared_ptr<DACLIB::VolumeGrid> protein_grid;
+  boost::shared_ptr<DACLIB::VolumeGrid> query_vol_grid;
+  boost::shared_ptr<DACLIB::VolumeGrid> protein_grid;
   vector<pair<string,DACLIB::VolumeGrid *> > score_vol_grids;
-  shared_ptr<OESzybki> szybki;
-  shared_ptr<OEOmega> omega;
-  vector<shared_ptr<OESubSearch> > not_smarts_subs;
+  boost::shared_ptr<OESzybki> szybki;
+  boost::shared_ptr<OEOmega> omega;
+  vector<boost::shared_ptr<OESubSearch> > not_smarts_subs;
   oemolistream *ims = 0;
 
   setup_search( ts , input_smarts , smarts_sub_defn , pharm_points ,
@@ -1730,14 +1730,14 @@ void parallel_triphic_search( TriphicSettings &ts , int world_size ) {
   OEMolBase *query_mol;
   vector<BasePPhoreSite *> query_sites;
   vector<SinglePPhoreSite *> query_score_sites;
-  shared_ptr<OEMolBase> protein;
+  boost::shared_ptr<OEMolBase> protein;
   vector<string> mol_subset;
-  shared_ptr<DACLIB::VolumeGrid> query_vol_grid;
-  shared_ptr<DACLIB::VolumeGrid> protein_grid;
+  boost::shared_ptr<DACLIB::VolumeGrid> query_vol_grid;
+  boost::shared_ptr<DACLIB::VolumeGrid> protein_grid;
   vector<pair<string,DACLIB::VolumeGrid *> > score_vol_grids;
-  shared_ptr<OESzybki> szybki;
-  shared_ptr<OEOmega> omega;
-  vector<shared_ptr<OESubSearch> > not_smarts_subs;
+  boost::shared_ptr<OESzybki> szybki;
+  boost::shared_ptr<OEOmega> omega;
+  vector<boost::shared_ptr<OESubSearch> > not_smarts_subs;
   setup_search( ts , input_smarts , smarts_sub_defn , pharm_points ,
                 query_mol , query_sites , query_score_sites , protein ,
                 mol_subset , query_vol_grid , protein_grid ,
@@ -1789,14 +1789,14 @@ void slave_event_loop() {
   OEMolBase *query_mol;
   vector<BasePPhoreSite *> query_sites;
   vector<SinglePPhoreSite *> query_score_sites;
-  shared_ptr<OEMolBase> protein;
+  boost::shared_ptr<OEMolBase> protein;
   TriphicSettings ts;
   vector<string> mol_subset;
-  shared_ptr<DACLIB::VolumeGrid> query_vol_grid;
-  shared_ptr<DACLIB::VolumeGrid> protein_grid;
-  shared_ptr<OESzybki> szybki;
-  shared_ptr<OEOmega> omega;
-  vector<shared_ptr<OESubSearch> > not_smarts_subs;
+  boost::shared_ptr<DACLIB::VolumeGrid> query_vol_grid;
+  boost::shared_ptr<DACLIB::VolumeGrid> protein_grid;
+  boost::shared_ptr<OESzybki> szybki;
+  boost::shared_ptr<OEOmega> omega;
+  vector<boost::shared_ptr<OESubSearch> > not_smarts_subs;
   list<OverlayScore *> hit_list;
   vector<pair<string,DACLIB::VolumeGrid *> > score_vol_grids;
 
